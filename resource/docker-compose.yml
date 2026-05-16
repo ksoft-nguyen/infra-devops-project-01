@@ -1,0 +1,84 @@
+# ============================================
+# Docker Compose — Local Development
+# ============================================
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: mern-todo-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - mern-network
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mern-todo-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: ${ME_CONFIG_BASICAUTH_USERNAME}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${ME_CONFIG_BASICAUTH_PASSWORD}
+    depends_on:
+      - mongodb
+    networks:
+      - mern-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: mern-todo-backend-dev
+    restart: unless-stopped
+    ports:
+      - "${EXTERNAL_BACKEND_PORT:-8000}:${INTERNAL_BACKEND_PORT:-8000}"
+    environment:
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+      PORT: ${INTERNAL_BACKEND_PORT:-8000}
+      JWT_SECRET: ${JWT_SECRET}
+      GMAIL_USERNAME: ${GMAIL_USERNAME}
+      GMAIL_PASSWORD: ${GMAIL_PASSWORD}
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - mern-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: mern-todo-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "${EXTERNAL_FRONTEND_PORT:-3000}:3000"
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - mern-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  mern-network:
+    driver: bridge
