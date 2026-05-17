@@ -11,7 +11,7 @@
     regexp: "^#?PasswordAuthentication"
     line: "PasswordAuthentication no"
 
-- name: Restart SSH
+- name: Reload SSH
   systemd:
     name: ssh
-    state: restarted
+    state: reloaded

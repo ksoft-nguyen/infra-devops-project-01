@@ -34,6 +34,36 @@
     port: "8080"
     proto: tcp
 
+- name: Allow Grafana UI
+  ufw:
+    rule: allow
+    port: "3000"
+    proto: tcp
+
+- name: Allow Prometheus UI
+  ufw:
+    rule: allow
+    port: "9090"
+    proto: tcp
+
+- name: Allow Alertmanager UI
+  ufw:
+    rule: allow
+    port: "9093"
+    proto: tcp
+
+- name: Allow Node Exporter metrics
+  ufw:
+    rule: allow
+    port: "9100"
+    proto: tcp
+
+- name: Allow Blackbox Exporter metrics
+  ufw:
+    rule: allow
+    port: "9115"
+    proto: tcp
+
 - name: Allow Jenkins agent connections
   ufw:
     rule: allow
