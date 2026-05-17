@@ -1,0 +1,21 @@
+services:
+  app:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    environment:
+      TZ: "Australia/Brisbane"
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    networks:
+      - nginx_proxy_manager_network
+
+networks:
+  nginx_proxy_manager_network:
+    name: nginx_proxy_manager_network
+    driver: bridge

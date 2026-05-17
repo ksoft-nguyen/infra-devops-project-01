@@ -1,0 +1,93 @@
+---
+- name: Find Docker apt source files
+  command: grep -Rsl download.docker.com/linux/ubuntu /etc/apt/sources.list.d
+  register: docker_apt_source_files
+  changed_when: false
+  failed_when: false
+
+- name: Remove Docker apt source files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ docker_apt_source_files.stdout_lines }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Check main apt sources list
+  stat:
+    path: /etc/apt/sources.list
+  register: apt_sources_list
+
+- name: Remove Docker repo entries from main apt sources list
+  lineinfile:
+    path: /etc/apt/sources.list
+    regexp: "download\\.docker\\.com/linux/ubuntu"
+    state: absent
+  when: apt_sources_list.stat.exists
+
+- name: Remove old Docker apt keyrings
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/keyrings/docker.gpg
+    - /etc/apt/keyrings/docker.asc
+
+- name: Remove Ubuntu Docker packages that conflict with Docker CE
+  apt:
+    name: "{{ docker_conflicting_packages }}"
+    state: absent
+    purge: yes
+    autoremove: yes
+    update_cache: yes
+
+- name: Install Docker and deployment apt dependencies
+  apt:
+    name:
+      - ca-certificates
+      - curl
+      - git
+      - gnupg
+    state: present
+    update_cache: yes
+
+- name: Create Docker apt keyring directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add Docker apt GPG key
+  get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: "{{ docker_apt_keyring }}"
+    mode: "0644"
+
+- name: Set Docker apt architecture
+  set_fact:
+    docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'armv7l': 'armhf'}.get(ansible_architecture, ansible_architecture) }}"
+
+- name: Add Docker apt repository
+  apt_repository:
+    repo: "deb [arch={{ docker_apt_arch }} signed-by={{ docker_apt_keyring }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    filename: docker
+    state: present
+    update_cache: yes
+
+- name: Install Docker Engine from Docker apt repository
+  apt:
+    name: "{{ docker_engine_packages }}"
+    state: present
+    update_cache: yes
+
+- name: Start and enable Docker
+  systemd:
+    name: docker
+    enabled: yes
+    state: started
+
+- name: Add ubuntu user to docker group
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes

@@ -1,0 +1,77 @@
+---
+- name: Create monitoring stack directory
+  file:
+    path: "{{ monitoring_stack_dir }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Copy monitoring stack files
+  copy:
+    src: "{{ playbook_dir }}/files/monitoring/"
+    dest: "{{ monitoring_stack_dir }}/"
+    owner: ubuntu
+    group: ubuntu
+    mode: preserve
+    directory_mode: "0755"
+
+- name: Inspect existing monitoring containers
+  command:
+    argv:
+      - docker
+      - inspect
+      - "--format"
+      - "{{ '{{ json .Config.Labels }}' }}"
+      - "{{ item }}"
+  loop: "{{ monitoring_container_names }}"
+  register: existing_monitoring_containers
+  changed_when: false
+  failed_when: false
+
+- name: Remove legacy monitoring containers
+  command:
+    argv:
+      - docker
+      - rm
+      - "--force"
+      - "{{ item.item }}"
+  loop: "{{ existing_monitoring_containers.results }}"
+  when:
+    - item.rc == 0
+    - "'\"com.docker.compose.project\":\"monitoring\"' not in item.stdout"
+  register: legacy_monitoring_removed
+  changed_when: true
+
+- name: Start monitoring stack with Docker Compose
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ monitoring_stack_dir }}/{{ monitoring_compose_file }}"
+      - up
+      - "-d"
+    chdir: "{{ monitoring_stack_dir }}"
+  register: monitoring_compose_up
+  changed_when: >
+    'Created' in monitoring_compose_up.stdout or
+    'Created' in monitoring_compose_up.stderr or
+    'Started' in monitoring_compose_up.stdout or
+    'Started' in monitoring_compose_up.stderr or
+    'Recreated' in monitoring_compose_up.stdout or
+    'Recreated' in monitoring_compose_up.stderr or
+    'Pulling' in monitoring_compose_up.stdout or
+    'Pulling' in monitoring_compose_up.stderr
+
+- name: Check monitoring stack containers
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ monitoring_stack_dir }}/{{ monitoring_compose_file }}"
+      - ps
+    chdir: "{{ monitoring_stack_dir }}"
+  register: monitoring_stack_ps
+  changed_when: false

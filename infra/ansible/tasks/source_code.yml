@@ -1,0 +1,8 @@
+---
+- name: Clone project source code
+  git:
+    repo: "{{ project_repo_url }}"
+    dest: "{{ project_source_dir }}"
+    version: "{{ project_repo_version }}"
+    update: yes
+  become_user: ubuntu

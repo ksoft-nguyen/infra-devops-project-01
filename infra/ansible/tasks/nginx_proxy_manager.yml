@@ -1,0 +1,88 @@
+---
+- name: Create Nginx Proxy Manager stack directory
+  file:
+    path: "{{ nginx_proxy_manager_stack_dir }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Copy Nginx Proxy Manager stack files
+  copy:
+    src: "{{ playbook_dir }}/files/nginx-proxy-manager/"
+    dest: "{{ nginx_proxy_manager_stack_dir }}/"
+    owner: ubuntu
+    group: ubuntu
+    mode: preserve
+    directory_mode: "0755"
+
+- name: Create Nginx Proxy Manager persistent directories
+  file:
+    path: "{{ nginx_proxy_manager_stack_dir }}/{{ item }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+  loop:
+    - data
+    - letsencrypt
+
+- name: Inspect existing Nginx Proxy Manager containers
+  command:
+    argv:
+      - docker
+      - inspect
+      - "--format"
+      - "{{ '{{ json .Config.Labels }}' }}"
+      - "{{ item }}"
+  loop: "{{ nginx_proxy_manager_container_names }}"
+  register: existing_nginx_proxy_manager_containers
+  changed_when: false
+  failed_when: false
+
+- name: Remove legacy Nginx Proxy Manager containers
+  command:
+    argv:
+      - docker
+      - rm
+      - "--force"
+      - "{{ item.item }}"
+  loop: "{{ existing_nginx_proxy_manager_containers.results }}"
+  when:
+    - item.rc == 0
+    - "'\"com.docker.compose.project\":\"nginx-proxy-manager\"' not in item.stdout"
+  register: legacy_nginx_proxy_manager_removed
+  changed_when: true
+
+- name: Start Nginx Proxy Manager stack with Docker Compose
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ nginx_proxy_manager_stack_dir }}/{{ nginx_proxy_manager_compose_file }}"
+      - up
+      - "-d"
+    chdir: "{{ nginx_proxy_manager_stack_dir }}"
+  register: nginx_proxy_manager_compose_up
+  changed_when: >
+    'Created' in nginx_proxy_manager_compose_up.stdout or
+    'Created' in nginx_proxy_manager_compose_up.stderr or
+    'Started' in nginx_proxy_manager_compose_up.stdout or
+    'Started' in nginx_proxy_manager_compose_up.stderr or
+    'Recreated' in nginx_proxy_manager_compose_up.stdout or
+    'Recreated' in nginx_proxy_manager_compose_up.stderr or
+    'Pulling' in nginx_proxy_manager_compose_up.stdout or
+    'Pulling' in nginx_proxy_manager_compose_up.stderr
+
+- name: Check Nginx Proxy Manager stack containers
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ nginx_proxy_manager_stack_dir }}/{{ nginx_proxy_manager_compose_file }}"
+      - ps
+    chdir: "{{ nginx_proxy_manager_stack_dir }}"
+  register: nginx_proxy_manager_stack_ps
+  changed_when: false

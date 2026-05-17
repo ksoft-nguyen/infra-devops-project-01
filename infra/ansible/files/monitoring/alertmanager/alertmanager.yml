@@ -1,0 +1,27 @@
+global:
+  resolve_timeout: 5m
+  # Configure SMTP settings here when enabling email alerts.
+  # smtp_smarthost: smtp.example.com:587
+  # smtp_from: alerts@example.com
+  # smtp_auth_username: alerts@example.com
+  # smtp_auth_password: replace-me
+
+route:
+  receiver: placeholder
+  group_by:
+    - alertname
+    - job
+    - instance
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: placeholder
+    # Add email_configs, slack_configs, or webhook_configs here later.
+    # email_configs:
+    #   - to: team@example.com
+    # slack_configs:
+    #   - api_url: https://hooks.slack.com/services/replace/me
+    # webhook_configs:
+    #   - url: https://example.com/alert-webhook

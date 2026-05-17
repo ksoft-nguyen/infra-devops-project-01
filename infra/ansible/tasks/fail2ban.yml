@@ -1,0 +1,24 @@
+---
+- name: Install Fail2Ban
+  apt:
+    name: fail2ban
+    state: present
+
+- name: Configure Fail2Ban for SSH
+  copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [sshd]
+      enabled = true
+      port = 22
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = 3
+      bantime = 3600
+      findtime = 600
+
+- name: Start and enable Fail2Ban
+  systemd:
+    name: fail2ban
+    enabled: yes
+    state: restarted

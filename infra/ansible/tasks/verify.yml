@@ -1,0 +1,19 @@
+---
+- name: Check Docker version
+  command: docker --version
+  register: docker_ver
+  changed_when: false
+
+- name: Check Docker Compose version
+  command: docker compose version
+  register: compose_ver
+  changed_when: false
+
+- name: Show versions
+  debug:
+    msg:
+      - "{{ docker_ver.stdout }}"
+      - "{{ compose_ver.stdout }}"
+      - "{{ nginx_proxy_manager_stack_ps.stdout_lines }}"
+      - "{{ ci_cd_stack_ps.stdout_lines }}"
+      - "{{ monitoring_stack_ps.stdout_lines }}"
