@@ -1,0 +1,16 @@
+# Private keys and local credentials
+*.pem
+*.key
+*.ppk
+id_*
+.env
+.env.*
+vault-password*
+*.vault-password
+hosts.ini
+
+# Keep checked-in examples/templates visible
+!*.example
+!*.example.*
+!.env.example
+!hosts.ini.example
