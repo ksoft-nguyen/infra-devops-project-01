@@ -56,6 +56,24 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # MERN application frontend
+  ingress {
+    description = "MERN Frontend"
+    from_port   = 3111
+    to_port     = 3111
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # MERN application backend API
+  ingress {
+    description = "MERN Backend API"
+    from_port   = 8111
+    to_port     = 8111
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Prometheus UI
   ingress {
     description = "Prometheus"

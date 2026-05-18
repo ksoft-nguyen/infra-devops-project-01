@@ -1,0 +1,55 @@
+name: Trigger Jenkins Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "resource/**"
+      - "infra/ansible/**"
+      - ".github/workflows/trigger-jenkins-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Git branch to deploy"
+        required: false
+        default: "main"
+
+jobs:
+  trigger-jenkins:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Jenkins deployment job
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          JENKINS_PASSWORD: ${{ secrets.JENKINS_PASSWORD }}
+          JENKINS_JOB: ${{ secrets.JENKINS_JOB }}
+          DISPATCH_BRANCH: ${{ github.event.inputs.branch }}
+          REF_BRANCH: ${{ github.ref_name }}
+          GIT_COMMIT_SHA: ${{ github.sha }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          : "${JENKINS_URL:?JENKINS_URL secret is required}"
+          : "${JENKINS_USER:?JENKINS_USER secret is required}"
+          jenkins_secret="${JENKINS_TOKEN:-${JENKINS_PASSWORD:-}}"
+          : "${jenkins_secret:?JENKINS_TOKEN or JENKINS_PASSWORD secret is required}"
+
+          jenkins_url="${JENKINS_URL%/}"
+          job="${JENKINS_JOB:-deploy-mern-todo}"
+          branch="${DISPATCH_BRANCH:-$REF_BRANCH}"
+          crumb_header="$(curl -fsS -u "${JENKINS_USER}:${jenkins_secret}" \
+            "${jenkins_url}/crumbIssuer/api/json" \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["crumbRequestField"] + ":" + d["crumb"])')"
+
+          curl -fsS -X POST \
+            -u "${JENKINS_USER}:${jenkins_secret}" \
+            -H "${crumb_header}" \
+            --data-urlencode "GIT_BRANCH=${branch}" \
+            --data-urlencode "GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" \
+            --data-urlencode "GITHUB_RUN_URL=${GITHUB_RUN_URL}" \
+            "${jenkins_url}/job/${job}/buildWithParameters"

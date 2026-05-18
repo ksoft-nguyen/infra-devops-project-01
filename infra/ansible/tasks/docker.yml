@@ -48,6 +48,7 @@
       - curl
       - git
       - gnupg
+      - make
     state: present
     update_cache: yes
 

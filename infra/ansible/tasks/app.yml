@@ -1,0 +1,78 @@
+---
+- name: Ensure MERN application stack directory exists
+  file:
+    path: "{{ app_stack_dir }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Create MERN application environment file
+  template:
+    src: app.env.j2
+    dest: "{{ app_env_file }}"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  no_log: true
+
+- name: Inspect existing MERN application containers
+  command:
+    argv:
+      - docker
+      - inspect
+      - "--format"
+      - "{{ '{{ json .Config.Labels }}' }}"
+      - "{{ item }}"
+  loop: "{{ app_container_names }}"
+  register: existing_app_containers
+  changed_when: false
+  failed_when: false
+
+- name: Remove legacy MERN application containers
+  command:
+    argv:
+      - docker
+      - rm
+      - "--force"
+      - "{{ item.item }}"
+  loop: "{{ existing_app_containers.results }}"
+  when:
+    - item.rc == 0
+    - "'\"com.docker.compose.project\":\"' ~ app_compose_project ~ '\"' not in item.stdout"
+  register: legacy_app_removed
+  changed_when: true
+
+- name: Start MERN application stack with Makefile
+  command:
+    argv:
+      - make
+      - prod
+      - "PROJECT={{ app_make_project }}"
+      - "ENV_FILE={{ app_env_file }}"
+    chdir: "{{ app_stack_dir }}"
+  register: app_compose_up
+  changed_when: >
+    'Created' in app_compose_up.stdout or
+    'Created' in app_compose_up.stderr or
+    'Started' in app_compose_up.stdout or
+    'Started' in app_compose_up.stderr or
+    'Recreated' in app_compose_up.stdout or
+    'Recreated' in app_compose_up.stderr or
+    'Pulling' in app_compose_up.stdout or
+    'Pulling' in app_compose_up.stderr or
+    'Building' in app_compose_up.stdout or
+    'Building' in app_compose_up.stderr or
+    'Built' in app_compose_up.stdout or
+    'Built' in app_compose_up.stderr
+
+- name: Check MERN application stack containers
+  command:
+    argv:
+      - make
+      - prod-ps
+      - "PROJECT={{ app_make_project }}"
+      - "ENV_FILE={{ app_env_file }}"
+    chdir: "{{ app_stack_dir }}"
+  register: app_stack_ps
+  changed_when: false

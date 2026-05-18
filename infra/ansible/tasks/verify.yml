@@ -14,6 +14,7 @@
     msg:
       - "{{ docker_ver.stdout }}"
       - "{{ compose_ver.stdout }}"
+      - "{{ app_stack_ps.stdout_lines }}"
       - "{{ nginx_proxy_manager_stack_ps.stdout_lines }}"
       - "{{ ci_cd_stack_ps.stdout_lines }}"
       - "{{ monitoring_stack_ps.stdout_lines }}"

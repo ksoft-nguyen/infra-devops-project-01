@@ -34,6 +34,18 @@
     port: "8080"
     proto: tcp
 
+- name: Allow MERN application frontend
+  ufw:
+    rule: allow
+    port: "{{ app_external_frontend_port }}"
+    proto: tcp
+
+- name: Allow MERN application backend API
+  ufw:
+    rule: allow
+    port: "{{ app_external_backend_port }}"
+    proto: tcp
+
 - name: Allow Grafana UI
   ufw:
     rule: allow

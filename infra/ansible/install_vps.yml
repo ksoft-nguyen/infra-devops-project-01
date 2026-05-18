@@ -23,6 +23,26 @@
     project_repo_url: https://github.com/ksoft-nguyen/infra-devops-project-01.git
     project_repo_version: HEAD
     project_source_dir: /home/ubuntu/infra-devops-project-01
+    app_stack_dir: "{{ project_source_dir }}/resource"
+    app_env_file: "{{ app_stack_dir }}/.env"
+    app_make_project: mern-todo
+    app_compose_project: "{{ app_make_project }}-prod"
+    app_container_names:
+      - mern-todo-mongodb
+      - mern-todo-backend-prod
+      - mern-todo-frontend-prod
+    app_mongo_root_username: admin
+    app_mongo_root_password: password123
+    app_mongo_database: mern_todo
+    app_mongo_express_username: admin
+    app_mongo_express_password: admin
+    app_external_backend_port: "8111"
+    app_internal_backend_port: "8111"
+    app_jwt_secret: BI_MAT
+    app_gmail_username: ""
+    app_gmail_password: ""
+    app_external_frontend_port: "3111"
+    app_react_app_api_url: "http://{{ ansible_host | default(inventory_hostname) }}:8111/api"
     nginx_proxy_manager_stack_dir: /opt/nginx-proxy-manager
     nginx_proxy_manager_compose_file: docker-compose.nginx-proxy-manager.yml
     nginx_proxy_manager_container_names:
@@ -31,6 +51,7 @@
     ci_cd_compose_file: docker-compose.ci-cd.yml
     ci_cd_container_names:
       - jenkins
+    ci_cd_deploy_branch: main
     monitoring_stack_dir: /opt/monitoring
     monitoring_compose_file: docker-compose.monitoring.yml
     monitoring_container_names:
@@ -68,6 +89,9 @@
 
     - name: Clone project source code
       import_tasks: tasks/source_code.yml
+
+    - name: Deploy MERN application stack
+      import_tasks: tasks/app.yml
 
     - name: Deploy Nginx Proxy Manager stack
       import_tasks: tasks/nginx_proxy_manager.yml

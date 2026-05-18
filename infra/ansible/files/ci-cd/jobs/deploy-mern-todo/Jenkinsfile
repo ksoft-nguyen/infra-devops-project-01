@@ -1,0 +1,16 @@
+pipeline {
+  agent any
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    disableConcurrentBuilds()
+  }
+
+  stages {
+    stage('Deploy') {
+      steps {
+        sh 'sh infra/ansible/files/ci-cd/scripts/deploy.sh'
+      }
+    }
+  }
+}

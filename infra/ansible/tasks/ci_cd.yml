@@ -16,6 +16,25 @@
     mode: preserve
     directory_mode: "0755"
 
+- name: Inspect Docker socket
+  stat:
+    path: /var/run/docker.sock
+  register: docker_socket_stat
+
+- name: Create CI/CD stack environment file
+  copy:
+    dest: "{{ ci_cd_stack_dir }}/.env"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+    content: |
+      DEPLOY_GIT_BRANCH={{ ci_cd_deploy_branch }}
+      PROJECT_SOURCE_DIR={{ project_source_dir }}
+      APP_STACK_DIR={{ app_stack_dir }}
+      APP_ENV_FILE={{ app_env_file }}
+      APP_MAKE_PROJECT={{ app_make_project }}
+      DOCKER_GID={{ docker_socket_stat.stat.gid | default(999) }}
+
 - name: Inspect existing CI/CD containers
   command:
     argv:
@@ -52,6 +71,7 @@
       - "{{ ci_cd_stack_dir }}/{{ ci_cd_compose_file }}"
       - up
       - "-d"
+      - "--build"
     chdir: "{{ ci_cd_stack_dir }}"
   register: ci_cd_compose_up
   changed_when: >
@@ -62,7 +82,11 @@
     'Recreated' in ci_cd_compose_up.stdout or
     'Recreated' in ci_cd_compose_up.stderr or
     'Pulling' in ci_cd_compose_up.stdout or
-    'Pulling' in ci_cd_compose_up.stderr
+    'Pulling' in ci_cd_compose_up.stderr or
+    'Building' in ci_cd_compose_up.stdout or
+    'Building' in ci_cd_compose_up.stderr or
+    'Built' in ci_cd_compose_up.stdout or
+    'Built' in ci_cd_compose_up.stderr
 
 - name: Check CI/CD stack containers
   command:

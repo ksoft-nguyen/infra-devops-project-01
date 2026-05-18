@@ -1,15 +1,36 @@
 services:
   jenkins:
-    image: jenkins/jenkins:lts-jdk17
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    image: final-project-jenkins:lts-jdk17
     container_name: jenkins
     restart: unless-stopped
+    group_add:
+      - "${DOCKER_GID:-999}"
     ports:
       - "8080:8080"
       - "50000:50000"
+    environment:
+      DEPLOY_GIT_BRANCH: ${DEPLOY_GIT_BRANCH:-main}
+      PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}
+      APP_STACK_DIR: ${APP_STACK_DIR}
+      APP_ENV_FILE: ${APP_ENV_FILE}
+      APP_MAKE_PROJECT: ${APP_MAKE_PROJECT:-mern-todo}
     volumes:
       - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${PROJECT_SOURCE_DIR}:${PROJECT_SOURCE_DIR}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - ci_cd_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/login >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
 
 volumes:
   jenkins_home:
