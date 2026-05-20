@@ -12,13 +12,16 @@ services:
       - "8080:8080"
       - "50000:50000"
     environment:
+      JENKINS_URL: ${JENKINS_URL:-http://localhost:8080/}
+      JENKINS_ADMIN_ID: ${JENKINS_ADMIN_ID:-admin}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-admin123}
       DEPLOY_GIT_BRANCH: ${DEPLOY_GIT_BRANCH:-main}
       PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}
       APP_STACK_DIR: ${APP_STACK_DIR}
       APP_ENV_FILE: ${APP_ENV_FILE}
       APP_MAKE_PROJECT: ${APP_MAKE_PROJECT:-mern-todo}
     volumes:
-      - jenkins_home:/var/jenkins_home
+      - ./jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
       - ${PROJECT_SOURCE_DIR}:${PROJECT_SOURCE_DIR}
     extra_hosts:
@@ -31,10 +34,6 @@ services:
       timeout: 5s
       retries: 30
       start_period: 60s
-
-volumes:
-  jenkins_home:
-    driver: local
 
 networks:
   ci_cd_network:

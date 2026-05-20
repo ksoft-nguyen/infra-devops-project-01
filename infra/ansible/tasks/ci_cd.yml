@@ -16,6 +16,89 @@
     mode: preserve
     directory_mode: "0755"
 
+- name: Create Jenkins home directory
+  file:
+    path: "{{ ci_cd_stack_dir }}/jenkins_home"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Create Jenkins init directory
+  file:
+    path: "{{ ci_cd_stack_dir }}/jenkins_home/init.groovy.d"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Install Jenkins security init script
+  copy:
+    src: "{{ ci_cd_stack_dir }}/init.groovy.d/security.groovy"
+    dest: "{{ ci_cd_stack_dir }}/jenkins_home/init.groovy.d/security.groovy"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+    remote_src: true
+  register: jenkins_security_init
+
+- name: Create Jenkins deployment job directory
+  file:
+    path: "{{ ci_cd_stack_dir }}/jenkins_home/jobs/{{ ci_cd_jenkins_job_name }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Create Jenkins deployment job
+  copy:
+    dest: "{{ ci_cd_stack_dir }}/jenkins_home/jobs/{{ ci_cd_jenkins_job_name }}/config.xml"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+    content: |
+      <?xml version='1.0' encoding='UTF-8'?>
+      <flow-definition plugin="workflow-job">
+        <actions/>
+        <description>Deploy the MERN Todo application. This job is managed by Ansible and runs the repository Jenkinsfile.</description>
+        <keepDependencies>false</keepDependencies>
+        <properties>
+          <hudson.model.ParametersDefinitionProperty>
+            <parameterDefinitions>
+              <hudson.model.StringParameterDefinition>
+                <name>GIT_BRANCH</name>
+                <description>Git branch to deploy.</description>
+                <defaultValue>{{ ci_cd_deploy_branch }}</defaultValue>
+                <trim>true</trim>
+              </hudson.model.StringParameterDefinition>
+            </parameterDefinitions>
+          </hudson.model.ParametersDefinitionProperty>
+        </properties>
+        <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
+          <scm class="hudson.plugins.git.GitSCM" plugin="git">
+            <configVersion>2</configVersion>
+            <userRemoteConfigs>
+              <hudson.plugins.git.UserRemoteConfig>
+                <url>{{ project_repo_url }}</url>
+              </hudson.plugins.git.UserRemoteConfig>
+            </userRemoteConfigs>
+            <branches>
+              <hudson.plugins.git.BranchSpec>
+                <name>*/${GIT_BRANCH}</name>
+              </hudson.plugins.git.BranchSpec>
+            </branches>
+            <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+            <submoduleCfg class="empty-list"/>
+            <extensions/>
+          </scm>
+          <scriptPath>{{ ci_cd_jenkinsfile_path }}</scriptPath>
+          <lightweight>true</lightweight>
+        </definition>
+        <triggers/>
+        <disabled>false</disabled>
+      </flow-definition>
+  register: jenkins_deployment_job_config
+
 - name: Inspect Docker socket
   stat:
     path: /var/run/docker.sock
@@ -28,12 +111,16 @@
     group: ubuntu
     mode: "0600"
     content: |
+      JENKINS_URL={{ ci_cd_jenkins_url }}
+      JENKINS_ADMIN_ID={{ ci_cd_jenkins_admin_user }}
+      JENKINS_ADMIN_PASSWORD={{ ci_cd_jenkins_admin_password }}
       DEPLOY_GIT_BRANCH={{ ci_cd_deploy_branch }}
       PROJECT_SOURCE_DIR={{ project_source_dir }}
       APP_STACK_DIR={{ app_stack_dir }}
       APP_ENV_FILE={{ app_env_file }}
       APP_MAKE_PROJECT={{ app_make_project }}
       DOCKER_GID={{ docker_socket_stat.stat.gid | default(999) }}
+  no_log: true
 
 - name: Inspect existing CI/CD containers
   command:
@@ -87,6 +174,20 @@
     'Building' in ci_cd_compose_up.stderr or
     'Built' in ci_cd_compose_up.stdout or
     'Built' in ci_cd_compose_up.stderr
+
+- name: Restart Jenkins when deployment job config changes
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ ci_cd_stack_dir }}/{{ ci_cd_compose_file }}"
+      - restart
+      - jenkins
+    chdir: "{{ ci_cd_stack_dir }}"
+  when: jenkins_deployment_job_config.changed or jenkins_security_init.changed
+  register: jenkins_restart
+  changed_when: true
 
 - name: Check CI/CD stack containers
   command:

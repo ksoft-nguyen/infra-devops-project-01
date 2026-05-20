@@ -51,7 +51,12 @@
     ci_cd_compose_file: docker-compose.ci-cd.yml
     ci_cd_container_names:
       - jenkins
+    ci_cd_jenkins_url: "http://{{ ansible_host | default(inventory_hostname) }}:8080/"
+    ci_cd_jenkins_admin_user: "{{ lookup('env', 'JENKINS_ADMIN_ID') | default('admin', true) }}"
+    ci_cd_jenkins_admin_password: "{{ lookup('env', 'JENKINS_ADMIN_PASSWORD') | default('admin123', true) }}"
     ci_cd_deploy_branch: main
+    ci_cd_jenkins_job_name: deploy-mern-todo
+    ci_cd_jenkinsfile_path: infra/ansible/files/ci-cd/jobs/deploy-mern-todo/Jenkinsfile
     monitoring_stack_dir: /opt/monitoring
     monitoring_compose_file: docker-compose.monitoring.yml
     monitoring_container_names:
