@@ -42,7 +42,7 @@
     app_gmail_username: ""
     app_gmail_password: ""
     app_external_frontend_port: "3111"
-    app_react_app_api_url: "http://{{ ansible_host | default(inventory_hostname) }}:8111/api"
+    app_react_app_api_url: "https://api-final-project.nguyentrungkien.net/api"
     nginx_proxy_manager_stack_dir: /opt/nginx-proxy-manager
     nginx_proxy_manager_compose_file: docker-compose.nginx-proxy-manager.yml
     nginx_proxy_manager_container_names:

@@ -43,8 +43,10 @@ Review the important values in `.env`:
 EXTERNAL_BACKEND_PORT=8111
 INTERNAL_BACKEND_PORT=8111
 EXTERNAL_FRONTEND_PORT=3111
-REACT_APP_API_URL=http://localhost:8111/api
+REACT_APP_API_URL=https://api-final-project.nguyentrungkien.net/api
 ```
+
+For an all-local development stack, set `REACT_APP_API_URL=http://localhost:8111/api`.
 
 ## Basic Commands
 
