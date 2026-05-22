@@ -8,6 +8,7 @@ id_*
 vault-password*
 *.vault-password
 hosts.ini
+.alertmanager_smtp_password
 
 # Keep checked-in examples/templates visible
 !*.example

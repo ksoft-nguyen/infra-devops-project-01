@@ -17,7 +17,7 @@ cd infra/ansible
 ansible-playbook -i hosts.ini install_vps.yml
 ```
 
-Optional Grafana admin credentials can be supplied from your shell before running Ansible:
+Optional Grafana admin credentials and Gmail alert credentials can be supplied from your shell before running Ansible:
 
 ```sh
 export GRAFANA_ADMIN_USER=admin
@@ -28,7 +28,9 @@ ansible-playbook -i hosts.ini install_vps.yml
 
 If those variables are not set, the playbook uses `admin` / `admin123`.
 Alertmanager is configured to send email through Gmail using `kennynguyen110702@gmail.com` by default.
-`ALERTMANAGER_SMTP_PASSWORD` is required and should be the Gmail app password, with or without spaces.
+`ALERTMANAGER_SMTP_PASSWORD` enables email notifications and should be the Gmail app password, with or without spaces.
+If it is not set, the playbook also checks local file `infra/ansible/.alertmanager_smtp_password`.
+If neither source is present, the monitoring stack still deploys, but Alertmanager keeps the placeholder receiver and does not send email.
 
 Optional Alertmanager overrides:
 
@@ -75,5 +77,5 @@ For Docker services, use a service and port that return HTTP 2xx from the produc
 ## Alert Delivery
 
 Alertmanager email delivery is generated from `templates/alertmanager.yml.j2`.
-After deploying, open `http://<server-ip>:9093/#/status` and verify the active receiver is `gmail`.
+After deploying with `ALERTMANAGER_SMTP_PASSWORD`, open `http://<server-ip>:9093/#/status` and verify the active receiver is `gmail`.
 To test an alert path, temporarily stop one monitored container, wait for the alert's `for` duration, then start it again and confirm the resolved email arrives.

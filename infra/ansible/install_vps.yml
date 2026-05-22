@@ -74,7 +74,8 @@
     monitoring_alert_email_to: "{{ lookup('env', 'ALERTMANAGER_EMAIL_TO') | default(monitoring_alert_email_address, true) }}"
     monitoring_alert_smtp_smarthost: "{{ lookup('env', 'ALERTMANAGER_SMTP_SMARTHOST') | default('smtp.gmail.com:587', true) }}"
     monitoring_alert_smtp_auth_username: "{{ lookup('env', 'ALERTMANAGER_SMTP_USERNAME') | default(monitoring_alert_email_address, true) }}"
-    monitoring_alert_smtp_auth_password: "{{ lookup('env', 'ALERTMANAGER_SMTP_PASSWORD') | default('', true) | regex_replace('\\s+', '') }}"
+    monitoring_alert_smtp_auth_password_file: "{{ lookup('file', playbook_dir ~ '/.alertmanager_smtp_password', errors='ignore') | default('', true) }}"
+    monitoring_alert_smtp_auth_password: "{{ lookup('env', 'ALERTMANAGER_SMTP_PASSWORD') | default(monitoring_alert_smtp_auth_password_file, true) | regex_replace('\\s+', '') }}"
 
   pre_tasks:
     - name: Wait for SSH to become available

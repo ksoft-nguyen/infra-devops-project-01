@@ -27,11 +27,10 @@
   register: monitoring_env_file_result
   no_log: true
 
-- name: Validate Alertmanager Gmail app password is provided
-  assert:
-    that:
-      - monitoring_alert_smtp_auth_password | length > 0
-    fail_msg: "Set ALERTMANAGER_SMTP_PASSWORD before running the playbook so Alertmanager can send Gmail alerts."
+- name: Warn when Alertmanager Gmail app password is not provided
+  debug:
+    msg: "ALERTMANAGER_SMTP_PASSWORD is not set. Monitoring will deploy, but Alertmanager email notifications will stay disabled."
+  when: monitoring_alert_smtp_auth_password | length == 0
 
 - name: Create Alertmanager email configuration
   template:
@@ -42,6 +41,7 @@
     mode: "0600"
   register: monitoring_alertmanager_config
   no_log: true
+  when: monitoring_alert_smtp_auth_password | length > 0
 
 - name: Check MERN application Docker network exists
   command:
@@ -111,7 +111,13 @@
       - "{{ monitoring_stack_dir }}/{{ monitoring_compose_file }}"
       - restart
     chdir: "{{ monitoring_stack_dir }}"
-  when: monitoring_stack_files.changed or monitoring_env_file_result.changed or monitoring_alertmanager_config.changed
+  when: >
+    monitoring_stack_files.changed or
+    monitoring_env_file_result.changed or
+    (
+      monitoring_alertmanager_config is defined and
+      monitoring_alertmanager_config.changed | default(false)
+    )
   changed_when: true
 
 - name: Check monitoring stack containers
