@@ -64,7 +64,17 @@
       - prometheus
       - host-node-exporter
       - host-blackbox
+      - mongodb-exporter
       - alertmanager
+    monitoring_app_network_name: "{{ app_compose_project }}_mern-network"
+    monitoring_grafana_admin_user: "{{ lookup('env', 'GRAFANA_ADMIN_USER') | default('admin', true) }}"
+    monitoring_grafana_admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') | default('admin123', true) }}"
+    monitoring_alert_email_address: "{{ lookup('env', 'ALERTMANAGER_EMAIL') | default('kennynguyen110702@gmail.com', true) }}"
+    monitoring_alert_email_from: "{{ lookup('env', 'ALERTMANAGER_EMAIL_FROM') | default(monitoring_alert_email_address, true) }}"
+    monitoring_alert_email_to: "{{ lookup('env', 'ALERTMANAGER_EMAIL_TO') | default(monitoring_alert_email_address, true) }}"
+    monitoring_alert_smtp_smarthost: "{{ lookup('env', 'ALERTMANAGER_SMTP_SMARTHOST') | default('smtp.gmail.com:587', true) }}"
+    monitoring_alert_smtp_auth_username: "{{ lookup('env', 'ALERTMANAGER_SMTP_USERNAME') | default(monitoring_alert_email_address, true) }}"
+    monitoring_alert_smtp_auth_password: "{{ lookup('env', 'ALERTMANAGER_SMTP_PASSWORD') | default('', true) | regex_replace('\\s+', '') }}"
 
   pre_tasks:
     - name: Wait for SSH to become available

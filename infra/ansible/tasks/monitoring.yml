@@ -15,6 +15,43 @@
     group: ubuntu
     mode: preserve
     directory_mode: "0755"
+  register: monitoring_stack_files
+
+- name: Create monitoring environment file
+  template:
+    src: monitoring.env.j2
+    dest: "{{ monitoring_stack_dir }}/.env"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  register: monitoring_env_file_result
+  no_log: true
+
+- name: Validate Alertmanager Gmail app password is provided
+  assert:
+    that:
+      - monitoring_alert_smtp_auth_password | length > 0
+    fail_msg: "Set ALERTMANAGER_SMTP_PASSWORD before running the playbook so Alertmanager can send Gmail alerts."
+
+- name: Create Alertmanager email configuration
+  template:
+    src: alertmanager.yml.j2
+    dest: "{{ monitoring_stack_dir }}/alertmanager/alertmanager.yml"
+    owner: "65534"
+    group: "65534"
+    mode: "0600"
+  register: monitoring_alertmanager_config
+  no_log: true
+
+- name: Check MERN application Docker network exists
+  command:
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ monitoring_app_network_name }}"
+  register: monitoring_app_network_check
+  changed_when: false
 
 - name: Inspect existing monitoring containers
   command:
@@ -52,6 +89,7 @@
       - "{{ monitoring_stack_dir }}/{{ monitoring_compose_file }}"
       - up
       - "-d"
+      - "--remove-orphans"
     chdir: "{{ monitoring_stack_dir }}"
   register: monitoring_compose_up
   changed_when: >
@@ -63,6 +101,18 @@
     'Recreated' in monitoring_compose_up.stderr or
     'Pulling' in monitoring_compose_up.stdout or
     'Pulling' in monitoring_compose_up.stderr
+
+- name: Restart monitoring stack when configuration changes
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ monitoring_stack_dir }}/{{ monitoring_compose_file }}"
+      - restart
+    chdir: "{{ monitoring_stack_dir }}"
+  when: monitoring_stack_files.changed or monitoring_env_file_result.changed or monitoring_alertmanager_config.changed
+  changed_when: true
 
 - name: Check monitoring stack containers
   command:

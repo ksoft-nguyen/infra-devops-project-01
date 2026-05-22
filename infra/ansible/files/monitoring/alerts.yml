@@ -1,0 +1,65 @@
+groups:
+  - name: final-project-infra
+    rules:
+      - alert: HostNodeExporterDown
+        expr: up{job="node-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node exporter is down"
+          description: "Prometheus cannot scrape host hardware metrics from {{ $labels.instance }}."
+
+      - alert: HostHighCpuUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{job="node-exporter",mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "Average CPU usage on {{ $labels.instance }} is above 85% for 5 minutes."
+
+      - alert: HostHighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes{job="node-exporter"} / node_memory_MemTotal_bytes{job="node-exporter"})) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage on {{ $labels.instance }} is above 90% for 5 minutes."
+
+      - alert: HostRootDiskAlmostFull
+        expr: 100 * (1 - (node_filesystem_avail_bytes{job="node-exporter",mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job="node-exporter",mountpoint="/",fstype!~"tmpfs|overlay"})) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Root disk is almost full"
+          description: "Root filesystem usage on {{ $labels.instance }} is above 85%."
+
+      - alert: MongoDBExporterDown
+        expr: up{job="mongodb-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB exporter is down"
+          description: "Prometheus cannot scrape MongoDB exporter at {{ $labels.instance }}."
+
+      - alert: MongoDBUnavailable
+        expr: mongodb_up{job="mongodb-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB is unavailable"
+          description: "MongoDB exporter cannot connect to the project MongoDB instance."
+
+      - alert: HttpProbeFailed
+        expr: probe_success{job="blackbox-http"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP probe failed"
+          description: "Blackbox probe failed for {{ $labels.instance }}."
