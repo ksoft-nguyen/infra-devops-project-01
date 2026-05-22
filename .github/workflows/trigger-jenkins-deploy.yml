@@ -49,7 +49,7 @@ jobs:
           curl -fsS -X POST \
             -u "${JENKINS_USER}:${jenkins_secret}" \
             -H "${crumb_header}" \
-            --data-urlencode "GIT_BRANCH=${branch}" \
+            --data-urlencode "DEPLOY_BRANCH=${branch}" \
             --data-urlencode "GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" \
             --data-urlencode "GITHUB_RUN_URL=${GITHUB_RUN_URL}" \
             "${jenkins_url}/job/${job}/buildWithParameters"

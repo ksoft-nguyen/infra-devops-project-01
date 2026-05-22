@@ -9,7 +9,24 @@ pipeline {
   stages {
     stage('Deploy') {
       steps {
-        sh 'sh infra/ansible/files/ci-cd/scripts/deploy.sh'
+        sh '''#!/bin/sh
+set -eu
+
+deploy_script="infra/ansible/files/ci-cd/scripts/deploy.sh"
+
+echo "Jenkins workspace: ${WORKSPACE}"
+echo "Looking for deploy script: ${deploy_script}"
+
+if [ ! -f "${deploy_script}" ]; then
+  echo "Deploy script was not found." >&2
+  echo "Current directory: $(pwd)" >&2
+  echo "Repository files at workspace root:" >&2
+  find . -maxdepth 4 -type f | sort >&2
+  exit 1
+fi
+
+sh "${deploy_script}"
+'''
       }
     }
   }
