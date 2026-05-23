@@ -1,6 +1,6 @@
 # MERN Todo DevOps Platform on AWS
 
-An end-to-end DevOps implementation for deploying and observing a containerized MERN task-management application on AWS. The project provisions an EC2 host with Terraform, configures and secures it with Ansible, deploys application and platform services through Docker Compose, manages containers with Portainer, triggers deployments through GitHub Actions and Jenkins, and monitors availability and infrastructure health with Prometheus and Grafana.
+An end-to-end DevOps implementation for deploying and observing a containerized MERN task-management application on AWS. The project provisions an EC2 host with Terraform, configures and secures it with Ansible, deploys application and platform services through Docker Compose, runs Ansible and Terraform operations through Semaphore UI, manages containers with Portainer, triggers deployments through GitHub Actions and Jenkins, and monitors availability and infrastructure health with Prometheus and Grafana.
 
 ## Project At A Glance
 
@@ -12,6 +12,7 @@ An end-to-end DevOps implementation for deploying and observing a containerized 
 | Server automation | Ansible playbook with Docker installation, host hardening and stack deployments |
 | Runtime platform | Docker Engine and Docker Compose |
 | Container management | Portainer CE for local Docker administration |
+| Automation management | Semaphore UI for browser-based Ansible and Terraform/OpenTofu task execution |
 | Ingress | Nginx Proxy Manager for intended HTTP/HTTPS proxying and certificate management |
 | Delivery pipeline | GitHub Actions trigger to Jenkins pipeline, deployed on the EC2 host |
 | Observability | Prometheus, Grafana, Alertmanager, Node Exporter, Blackbox Exporter and MongoDB Exporter |
@@ -23,7 +24,7 @@ An end-to-end DevOps implementation for deploying and observing a containerized 
 
 The diagram follows the layered presentation style of a production platform design while remaining aligned with this repository's implemented configuration:
 
-- The runtime is a **single-host architecture**: application, Portainer, Jenkins, proxy and monitoring containers run on one EC2 instance.
+- The runtime is a **single-host architecture**: application, Semaphore UI, Portainer, Jenkins, proxy and monitoring containers run on one EC2 instance.
 - Terraform creates the EC2 instance and security group; Ansible installs/configures host software and deploys each Compose stack.
 - GitHub Actions does not build the application itself. It authenticates to Jenkins and triggers a deployment job.
 - Jenkins updates the server-side repository checkout and invokes the production Docker Compose workflow through `make prod`.
@@ -51,6 +52,7 @@ Application source code is stored under [`./resource/`](./resource/), with runti
 | Application | MongoDB 7, Express.js, React, Node.js, Mongoose, JWT, bcrypt, Nodemailer |
 | Containers | Docker Engine, Docker Compose, Docker volumes and bridge networks |
 | Container management | Portainer CE |
+| Automation management | Semaphore UI with SQLite persistence |
 | Reverse proxy | Nginx Proxy Manager |
 | CI/CD | GitHub Actions, Jenkins Pipeline, Groovy initialization and Make |
 | Metrics and alerting | Prometheus, Grafana, Alertmanager, Node Exporter, Blackbox Exporter and Percona MongoDB Exporter |
@@ -72,12 +74,13 @@ infra/
     ├── install_vps.yml                 # Top-level server setup playbook
     ├── hosts.ini.example               # Static inventory example
     ├── templates/                      # App, monitoring and alert configuration templates
-    ├── tasks/                          # Docker, hardening, app, proxy, Portainer, CI/CD and monitoring tasks
+    ├── tasks/                          # Docker, hardening, app, proxy, Portainer, Semaphore, CI/CD and monitoring tasks
     └── files/
         ├── ci-cd/                      # Jenkins image, pipeline and deploy script
         ├── monitoring/                 # Prometheus, Grafana and Alertmanager stack
         ├── nginx-proxy-manager/        # Edge proxy Compose definition
-        └── portainer/                  # Container management Compose definition
+        ├── portainer/                  # Container management Compose definition
+        └── semaphore/                  # Ansible/Terraform automation UI Compose definition
 ```
 
 ## Infrastructure Provisioning With Terraform
@@ -111,21 +114,23 @@ The current Terraform implementation does **not** provision a custom VPC, subnet
 | 7 | `tasks/app.yml` | Generates application environment configuration and starts the production app stack |
 | 8 | `tasks/nginx_proxy_manager.yml` | Deploys the HTTP/HTTPS proxy stack |
 | 9 | `tasks/portainer.yml` | Deploys the Portainer CE container management UI |
-| 10 | `tasks/ci_cd.yml` | Deploys Jenkins and creates its pipeline job configuration |
-| 11 | `tasks/monitoring.yml` | Deploys metrics, dashboards and alerting services |
-| 12 | `tasks/verify.yml` | Reports installed Docker versions and running stack state |
+| 10 | `tasks/semaphore.yml` | Deploys Semaphore UI for Ansible and Terraform/OpenTofu operations |
+| 11 | `tasks/ci_cd.yml` | Deploys Jenkins and creates its pipeline job configuration |
+| 12 | `tasks/monitoring.yml` | Deploys metrics, dashboards and alerting services |
+| 13 | `tasks/verify.yml` | Reports installed Docker versions and running stack state |
 
 The project uses task imports rather than Ansible roles. Environment files rendered to the target host are restricted to mode `0600`, and templating operations containing credentials use `no_log: true`.
 
 ## Docker Runtime Architecture
 
-Five Docker Compose concerns are deployed on the EC2 host:
+Six Docker Compose concerns are deployed on the EC2 host:
 
 | Stack | Configuration | Containers | Persistent storage |
 | --- | --- | --- | --- |
 | Production app | [`./resource/docker-compose.prod.yml`](./resource/docker-compose.prod.yml) | `mongodb`, `backend`, `frontend` | MongoDB named volume |
 | Reverse proxy | [`infra/ansible/files/nginx-proxy-manager/docker-compose.nginx-proxy-manager.yml`](./infra/ansible/files/nginx-proxy-manager/docker-compose.nginx-proxy-manager.yml) | Nginx Proxy Manager | Local data and Let's Encrypt directories |
 | Container management | [`infra/ansible/files/portainer/docker-compose.portainer.yml`](./infra/ansible/files/portainer/docker-compose.portainer.yml) | Portainer CE | `portainer_data` named volume |
+| Automation management | [`infra/ansible/files/semaphore/docker-compose.semaphore.yml`](./infra/ansible/files/semaphore/docker-compose.semaphore.yml) | Semaphore UI | `semaphore_config` and `semaphore_data` named volumes |
 | CI/CD | [`infra/ansible/files/ci-cd/docker-compose.ci-cd.yml`](./infra/ansible/files/ci-cd/docker-compose.ci-cd.yml) | Jenkins | Jenkins home bind mount |
 | Monitoring | [`infra/ansible/files/monitoring/docker-compose.monitoring.yml`](./infra/ansible/files/monitoring/docker-compose.monitoring.yml) | Grafana, Prometheus, Node Exporter, Blackbox Exporter, MongoDB Exporter, Alertmanager | Grafana, Prometheus and Alertmanager named volumes |
 
@@ -209,6 +214,7 @@ The AWS security group and UFW rules currently permit the following host access:
 | `81` | Nginx Proxy Manager admin UI | Proxy administration | Restrict to operator network |
 | `9443` | Portainer HTTPS admin UI | Local Docker container administration | Restrict to operator network or proxy securely |
 | `3000` | Grafana | Dashboard access | Restrict or proxy with authentication |
+| `3001` | Semaphore UI | Ansible and Terraform/OpenTofu task management | Restrict to operator network or proxy securely |
 | `3111` | React frontend direct port | Direct app access | Route only through proxy |
 | `8080` | Jenkins UI | Delivery administration and GitHub trigger endpoint | Restrict and proxy securely |
 | `8111` | Express API direct port | API access | Route only through proxy |
@@ -229,6 +235,7 @@ Configuration currently moves through several mechanisms:
 | AWS provisioning inputs | Terraform variables and local secret tfvars file |
 | Application runtime configuration | Ansible-rendered application `.env` file |
 | Jenkins bootstrap configuration | Ansible-created `.env` file and Groovy initialization |
+| Semaphore bootstrap configuration | Ansible-created `.env` and secret files; configuration and SQLite data use dedicated Docker volumes |
 | Grafana and exporter credentials | Ansible-rendered monitoring `.env` file |
 | Alert SMTP password | Environment variable or ignored local password file |
 | GitHub-to-Jenkins authentication | GitHub Actions encrypted secrets |
@@ -252,6 +259,8 @@ Terraform returns the public IP and DNS name used for the Ansible inventory.
 
 Always inspect the plan before applying it. Do not apply when Terraform reports that `aws_instance.web` "must be replaced" or shows `-/+` unless destroying the existing Docker host and its local service data is intentional. The EC2 AMI is pinned in `terraform.tfvars`; update that value only as part of a planned server replacement or migration. The instance uses `prevent_destroy` and EC2 termination protection; planned retirement requires explicitly removing both protections.
 
+For a host that was provisioned before Semaphore UI was added, run and inspect a Terraform plan using the existing state, then apply the security-group-only update that permits port `3001` before deploying the new Ansible stack.
+
 ### 2. Configure The Inventory
 
 Copy the provided inventory template and supply the EC2 host address and SSH key reference:
@@ -271,9 +280,13 @@ export JENKINS_ADMIN_PASSWORD="<strong-password>"
 export GRAFANA_ADMIN_USER="admin"
 export GRAFANA_ADMIN_PASSWORD="<strong-password>"
 export ALERTMANAGER_SMTP_PASSWORD="<smtp-app-password>"
+
+# Ignored local Semaphore bootstrap secrets read automatically by Ansible.
+printf '%s\n' '<password-at-least-8-characters>' > .semaphore_admin_password
+chmod 600 .semaphore_admin_password
 ```
 
-Application database and JWT credentials should likewise be moved out of checked-in defaults before any public deployment.
+Put a Semaphore administrator password of at least 8 characters in the ignored local file `infra/ansible/.semaphore_admin_password`. When that file is present, Ansible deploys its value as the Docker secret and creates or resets the Semaphore administrator account to match it; `SEMAPHORE_ADMIN_PASSWORD` remains available as an optional CI override. Use a substantially stronger password for any externally reachable deployment. If neither input is provided on the first deployment, Ansible generates a random initial password in `/opt/semaphore/.admin_password` on the server. Bootstrap secret files are owned by the Semaphore container runtime UID/GID with mode `0400`, because standalone Docker Compose mounts file-backed secrets with host filesystem permissions. Semaphore stores its SQLite database in the persisted `semaphore_data` volume at `/var/lib/semaphore`. For a locally retained encryption key, place the base64 output of `head -c32 /dev/urandom | base64` in the ignored file `infra/ansible/.semaphore_access_key_encryption`; otherwise Ansible generates it on the server. Application database and JWT credentials should likewise be moved out of checked-in defaults before any public deployment.
 
 ### 4. Configure The Host And Deploy Stacks
 
@@ -281,14 +294,29 @@ Application database and JWT credentials should likewise be moved out of checked
 ansible-playbook -i hosts.ini install_vps.yml
 ```
 
-### 5. Configure External Routing
+### 5. Use Semaphore UI
+
+Open `http://<server-public-ip>:3001` and log in with the administrator password kept in `infra/ansible/.semaphore_admin_password`. When the local administrator password and `final-devops-project.pem` are available during deployment, Ansible uses the Semaphore API to create the `devops-final-project` project, repository, default variable group, EC2 SSH key, inventory, and `Configure platform with Ansible` task template. If Ansible generated the initial password because no local file was provided, retrieve it on the server:
+
+```sh
+sudo cat /opt/semaphore/.admin_password
+```
+
+If the ignored key file is stored elsewhere, set `SEMAPHORE_SSH_PRIVATE_KEY_FILE` to its local path before running `ansible-playbook`. The project bootstrap is idempotent and creates only named objects that do not already exist.
+
+Terraform/OpenTofu is intentionally not bootstrapped as an executable Semaphore template yet. Do **not** run `terraform apply` from Semaphore against this existing host until Terraform state has been migrated to a shared backend or the UI execution context has been given the existing state. This repository currently uses local Terraform state, and a fresh UI checkout cannot safely infer managed resources. After that migration, create a Terraform/OpenTofu template pointing to `infra/terraform/` and supply AWS inputs through secret Variable Group values such as `TF_VAR_aws_access_key` and `TF_VAR_aws_secret_key`.
+
+Expose this administrative UI through protected HTTPS routing or restrict access to an operator network rather than leaving port `3001` publicly accessible.
+
+### 6. Configure External Routing
 
 After Nginx Proxy Manager is deployed, create proxy hosts and certificates for the frontend and API endpoints. DNS and proxy host definitions are not currently provisioned in this repository.
 
-### 6. Verify Operations
+### 7. Verify Operations
 
 - Confirm the public application is accessible through HTTPS.
 - Open `https://<server-public-ip>:9443`, accept the initial self-signed certificate only for setup, create the Portainer administrator account, and connect the local Docker environment.
+- Confirm Semaphore UI opens on port `3001` and can list configured Ansible and Terraform/OpenTofu templates.
 - Confirm Jenkins has the managed `deploy-mern-todo` pipeline job.
 - Confirm Prometheus targets are healthy.
 - Confirm Grafana loads the provisioned dashboard.
@@ -300,6 +328,7 @@ After Nginx Proxy Manager is deployed, create proxy hosts and certificates for t
 - Host configuration and platform service deployment automated using Ansible.
 - Application runtime isolation with Docker Compose and persistent storage volumes.
 - Local Docker administration with Portainer CE and persistent management data.
+- Browser-based Ansible and Terraform/OpenTofu operation management with Semaphore UI.
 - Server security baseline using UFW, Fail2Ban and hardened SSH.
 - CI/CD integration linking GitHub changes to Jenkins deployments.
 - Dashboard and alert provisioning stored as code.
@@ -331,6 +360,7 @@ This repository is appropriate as a learning and portfolio deployment, but the f
 | Application container commands | [`./resource/README.md`](./resource/README.md) |
 | Terraform configuration | [`./infra/terraform/`](./infra/terraform/) |
 | Ansible orchestration | [`./infra/ansible/install_vps.yml`](./infra/ansible/install_vps.yml) |
+| Semaphore UI stack | [`./infra/ansible/files/semaphore/docker-compose.semaphore.yml`](./infra/ansible/files/semaphore/docker-compose.semaphore.yml) |
 | Jenkins deployment pipeline | [`./infra/ansible/files/ci-cd/jobs/deploy-mern-todo/Jenkinsfile`](./infra/ansible/files/ci-cd/jobs/deploy-mern-todo/Jenkinsfile) |
 | Monitoring operations | [`./infra/ansible/files/monitoring/README.md`](./infra/ansible/files/monitoring/README.md) |
 | Architecture image | [`./final-project-architecture.svg`](./final-project-architecture.svg) |

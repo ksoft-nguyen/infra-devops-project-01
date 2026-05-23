@@ -56,6 +56,15 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Semaphore UI for Ansible and Terraform automation
+  ingress {
+    description = "Semaphore UI"
+    from_port   = 3001
+    to_port     = 3001
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Jenkins UI
   ingress {
     description = "Jenkins"

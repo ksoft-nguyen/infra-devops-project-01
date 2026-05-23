@@ -1,0 +1,227 @@
+---
+- name: Create Semaphore UI stack directory
+  file:
+    path: "{{ semaphore_stack_dir }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Copy Semaphore UI stack files
+  copy:
+    src: "{{ playbook_dir }}/files/semaphore/"
+    dest: "{{ semaphore_stack_dir }}/"
+    owner: ubuntu
+    group: ubuntu
+    mode: preserve
+    directory_mode: "0755"
+
+- name: Check stored Semaphore administrator password
+  stat:
+    path: "{{ semaphore_stack_dir }}/.admin_password"
+  register: semaphore_stored_admin_password_file
+
+- name: Validate configured Semaphore administrator password
+  assert:
+    that:
+      - semaphore_admin_password | length >= 8
+    fail_msg: "Set a Semaphore administrator password of at least 8 characters in .semaphore_admin_password or SEMAPHORE_ADMIN_PASSWORD."
+    quiet: true
+  when: semaphore_admin_password | length > 0
+
+- name: Store configured Semaphore administrator password
+  copy:
+    dest: "{{ semaphore_stack_dir }}/.admin_password"
+    content: "{{ semaphore_admin_password }}\n"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  when: semaphore_admin_password | length > 0
+  no_log: true
+
+- name: Generate Semaphore administrator password on first deployment
+  shell: |
+    umask 077
+    head -c32 /dev/urandom | base64 > "{{ semaphore_stack_dir }}/.admin_password"
+    chown ubuntu:ubuntu "{{ semaphore_stack_dir }}/.admin_password"
+  args:
+    creates: "{{ semaphore_stack_dir }}/.admin_password"
+  when:
+    - not semaphore_stored_admin_password_file.stat.exists
+    - semaphore_admin_password | length == 0
+  no_log: true
+
+- name: Report generated Semaphore administrator password location
+  debug:
+    msg: "No local Semaphore administrator password file or environment override was provided. Retrieve the generated initial password on the server with: sudo cat {{ semaphore_stack_dir }}/.admin_password"
+  when: semaphore_admin_password | length == 0
+
+- name: Check stored Semaphore access key encryption key
+  stat:
+    path: "{{ semaphore_stack_dir }}/.access_key_encryption"
+  register: semaphore_stored_access_key_file
+
+- name: Validate supplied Semaphore access key encryption key
+  assert:
+    that:
+      - semaphore_access_key_encryption is match('^[A-Za-z0-9+/]{43}=$')
+    fail_msg: "SEMAPHORE_ACCESS_KEY_ENCRYPTION must be generated with: head -c32 /dev/urandom | base64"
+    quiet: true
+  when:
+    - not semaphore_stored_access_key_file.stat.exists
+    - semaphore_access_key_encryption | length > 0
+
+- name: Store supplied Semaphore access key encryption key on first deployment
+  copy:
+    dest: "{{ semaphore_stack_dir }}/.access_key_encryption"
+    content: "{{ semaphore_access_key_encryption }}\n"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+    force: false
+  when: semaphore_access_key_encryption | length > 0
+  no_log: true
+
+- name: Generate Semaphore access key encryption key on first deployment
+  shell: |
+    umask 077
+    head -c32 /dev/urandom | base64 > "{{ semaphore_stack_dir }}/.access_key_encryption"
+    chown ubuntu:ubuntu "{{ semaphore_stack_dir }}/.access_key_encryption"
+  args:
+    creates: "{{ semaphore_stack_dir }}/.access_key_encryption"
+  when: semaphore_access_key_encryption | length == 0
+  no_log: true
+
+- name: Get Semaphore container runtime identity
+  command:
+    argv:
+      - docker
+      - run
+      - "--rm"
+      - "--entrypoint"
+      - sh
+      - "{{ semaphore_image }}"
+      - "-c"
+      - "id -u; id -g"
+  register: semaphore_runtime_identity
+  changed_when: false
+
+- name: Validate Semaphore container runtime identity
+  assert:
+    that:
+      - semaphore_runtime_identity.stdout_lines | length == 2
+      - semaphore_runtime_identity.stdout_lines[0] is match('^[0-9]+$')
+      - semaphore_runtime_identity.stdout_lines[1] is match('^[0-9]+$')
+    fail_msg: "Unable to determine the Semaphore container UID and GID required for Docker secret file access."
+    quiet: true
+
+- name: Allow only the Semaphore container user to read bootstrap secrets
+  file:
+    path: "{{ item }}"
+    state: file
+    owner: "{{ semaphore_runtime_identity.stdout_lines[0] }}"
+    group: "{{ semaphore_runtime_identity.stdout_lines[1] }}"
+    mode: "0400"
+  loop:
+    - "{{ semaphore_stack_dir }}/.admin_password"
+    - "{{ semaphore_stack_dir }}/.access_key_encryption"
+  no_log: true
+
+- name: Create Semaphore UI environment file
+  template:
+    src: semaphore.env.j2
+    dest: "{{ semaphore_stack_dir }}/.env"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  no_log: true
+
+- name: Inspect existing Semaphore UI containers
+  command:
+    argv:
+      - docker
+      - inspect
+      - "--format"
+      - "{{ '{{ json .Config.Labels }}' }}"
+      - "{{ item }}"
+  loop: "{{ semaphore_container_names }}"
+  register: existing_semaphore_containers
+  changed_when: false
+  failed_when: false
+
+- name: Remove legacy Semaphore UI containers
+  command:
+    argv:
+      - docker
+      - rm
+      - "--force"
+      - "{{ item.item }}"
+  loop: "{{ existing_semaphore_containers.results }}"
+  when:
+    - item.rc == 0
+    - "'\"com.docker.compose.project\":\"semaphore\"' not in item.stdout"
+  register: legacy_semaphore_removed
+  changed_when: true
+
+- name: Start Semaphore UI stack with Docker Compose
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ semaphore_stack_dir }}/{{ semaphore_compose_file }}"
+      - up
+      - "-d"
+      - "--remove-orphans"
+    chdir: "{{ semaphore_stack_dir }}"
+  register: semaphore_compose_up
+  changed_when: >
+    'Created' in semaphore_compose_up.stdout or
+    'Created' in semaphore_compose_up.stderr or
+    'Started' in semaphore_compose_up.stdout or
+    'Started' in semaphore_compose_up.stderr or
+    'Recreated' in semaphore_compose_up.stdout or
+    'Recreated' in semaphore_compose_up.stderr or
+    'Pulling' in semaphore_compose_up.stdout or
+    'Pulling' in semaphore_compose_up.stderr
+
+- name: Apply configured Semaphore administrator credential
+  command:
+    argv:
+      - docker
+      - exec
+      - semaphore
+      - sh
+      - "-c"
+      - >-
+        semaphore users change-by-login --config /etc/semaphore/config.json
+        --login "$SEMAPHORE_ADMIN"
+        --name "$SEMAPHORE_ADMIN_NAME"
+        --email "$SEMAPHORE_ADMIN_EMAIL"
+        --password "$(cat /run/secrets/semaphore_admin_password)"
+        --admin ||
+        semaphore users add --config /etc/semaphore/config.json
+        --login "$SEMAPHORE_ADMIN"
+        --name "$SEMAPHORE_ADMIN_NAME"
+        --email "$SEMAPHORE_ADMIN_EMAIL"
+        --password "$(cat /run/secrets/semaphore_admin_password)"
+        --admin
+  register: semaphore_admin_account_result
+  changed_when: true
+  no_log: true
+  retries: 12
+  delay: 5
+  until: semaphore_admin_account_result.rc == 0
+  when: semaphore_admin_password | length > 0
+
+- name: Check Semaphore UI stack containers
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ semaphore_stack_dir }}/{{ semaphore_compose_file }}"
+      - ps
+    chdir: "{{ semaphore_stack_dir }}"
+  register: semaphore_stack_ps
+  changed_when: false

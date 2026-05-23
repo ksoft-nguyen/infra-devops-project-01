@@ -1,0 +1,7 @@
+cd infra/terraform
+terraform plan -var-file="terraform.tfvars" -var-file="secrets.tfvars" -out=safe.tfplan
+terraform show safe.tfplan
+terraform apply -var-file="terraform.tfvars" -var-file="secrets.tfvars"
+
+cd ../ansible
+ansible-playbook -i hosts.ini install_vps.yml

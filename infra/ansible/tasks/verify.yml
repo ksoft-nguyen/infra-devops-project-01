@@ -17,5 +17,6 @@
       - "{{ app_stack_ps.stdout_lines }}"
       - "{{ nginx_proxy_manager_stack_ps.stdout_lines }}"
       - "{{ portainer_stack_ps.stdout_lines }}"
+      - "{{ semaphore_stack_ps.stdout_lines }}"
       - "{{ ci_cd_stack_ps.stdout_lines }}"
       - "{{ monitoring_stack_ps.stdout_lines }}"

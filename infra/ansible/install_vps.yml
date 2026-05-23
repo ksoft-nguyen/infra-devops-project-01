@@ -51,6 +51,30 @@
     portainer_compose_file: docker-compose.portainer.yml
     portainer_container_names:
       - portainer
+    semaphore_stack_dir: /opt/semaphore
+    semaphore_compose_file: docker-compose.semaphore.yml
+    semaphore_image: semaphoreui/semaphore:v2.18.2
+    semaphore_container_names:
+      - semaphore
+    semaphore_admin_user: "{{ lookup('env', 'SEMAPHORE_ADMIN_USER') | default('admin', true) }}"
+    semaphore_admin_name: "{{ lookup('env', 'SEMAPHORE_ADMIN_NAME') | default('Administrator', true) }}"
+    semaphore_admin_email: "{{ lookup('env', 'SEMAPHORE_ADMIN_EMAIL') | default('admin@localhost', true) }}"
+    semaphore_admin_password_file: "{{ lookup('file', playbook_dir ~ '/.semaphore_admin_password', errors='ignore') | default('', true) | regex_replace('\\s+$', '') }}"
+    semaphore_admin_password: "{{ lookup('env', 'SEMAPHORE_ADMIN_PASSWORD') | default(semaphore_admin_password_file, true) }}"
+    semaphore_access_key_encryption_file: "{{ lookup('file', playbook_dir ~ '/.semaphore_access_key_encryption', errors='ignore') | default('', true) | regex_replace('\\s+$', '') }}"
+    semaphore_access_key_encryption: "{{ lookup('env', 'SEMAPHORE_ACCESS_KEY_ENCRYPTION') | default(semaphore_access_key_encryption_file, true) }}"
+    semaphore_timezone: "{{ lookup('env', 'SEMAPHORE_TIMEZONE') | default('UTC', true) }}"
+    semaphore_bootstrap_enabled: true
+    semaphore_bootstrap_project_name: devops-final-project
+    semaphore_bootstrap_repository_name: Infrastructure source
+    semaphore_bootstrap_repository_branch: main
+    semaphore_bootstrap_repository_key_name: Public repository access
+    semaphore_bootstrap_environment_name: Default
+    semaphore_bootstrap_inventory_name: Production EC2 host
+    semaphore_bootstrap_ssh_key_name: Production EC2 SSH key
+    semaphore_bootstrap_ssh_private_key_file: "{{ lookup('env', 'SEMAPHORE_SSH_PRIVATE_KEY_FILE') | default(playbook_dir ~ '/final-devops-project.pem', true) }}"
+    semaphore_bootstrap_ssh_private_key: "{{ lookup('file', semaphore_bootstrap_ssh_private_key_file, errors='ignore') | default('', true) }}"
+    semaphore_bootstrap_ansible_template_name: Configure platform with Ansible
     ci_cd_stack_dir: /opt/ci-cd
     ci_cd_compose_file: docker-compose.ci-cd.yml
     ci_cd_container_names:
@@ -118,6 +142,12 @@
 
     - name: Deploy Portainer stack
       import_tasks: tasks/portainer.yml
+
+    - name: Deploy Semaphore UI stack
+      import_tasks: tasks/semaphore.yml
+
+    - name: Configure Semaphore UI project resources
+      import_tasks: tasks/semaphore_project.yml
 
     - name: Deploy CI/CD stack
       import_tasks: tasks/ci_cd.yml

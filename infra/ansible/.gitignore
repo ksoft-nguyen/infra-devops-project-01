@@ -9,6 +9,8 @@ vault-password*
 *.vault-password
 hosts.ini
 .alertmanager_smtp_password
+.semaphore_admin_password
+.semaphore_access_key_encryption
 
 # Keep checked-in examples/templates visible
 !*.example

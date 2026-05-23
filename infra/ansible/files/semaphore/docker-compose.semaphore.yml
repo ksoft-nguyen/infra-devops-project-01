@@ -1,0 +1,34 @@
+services:
+  semaphore:
+    image: ${SEMAPHORE_IMAGE:-semaphoreui/semaphore:v2.18.2}
+    container_name: semaphore
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env
+    volumes:
+      - semaphore_config:/etc/semaphore
+      - semaphore_data:/var/lib/semaphore
+    secrets:
+      - semaphore_admin_password
+      - semaphore_access_key_encryption
+    networks:
+      - semaphore_network
+
+volumes:
+  semaphore_config:
+    name: semaphore_config
+  semaphore_data:
+    name: semaphore_data
+
+secrets:
+  semaphore_admin_password:
+    file: ./.admin_password
+  semaphore_access_key_encryption:
+    file: ./.access_key_encryption
+
+networks:
+  semaphore_network:
+    name: semaphore_network
+    driver: bridge

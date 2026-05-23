@@ -1,0 +1,344 @@
+---
+- name: Populate initial Semaphore project
+  when:
+    - semaphore_bootstrap_enabled | bool
+    - semaphore_admin_password | length > 0
+  block:
+    - name: Authenticate to Semaphore API for project bootstrap
+      uri:
+        url: http://127.0.0.1:3001/api/auth/login
+        method: POST
+        body_format: json
+        body:
+          auth: "{{ semaphore_admin_user }}"
+          password: "{{ semaphore_admin_password }}"
+        status_code: 204
+      register: semaphore_api_login
+      no_log: true
+
+    - name: Read Semaphore projects
+      uri:
+        url: http://127.0.0.1:3001/api/projects
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+        return_content: true
+        status_code: 200
+      register: semaphore_projects
+
+    - name: Select configured Semaphore project
+      set_fact:
+        semaphore_bootstrap_project: "{{ (semaphore_projects.json | selectattr('name', 'equalto', semaphore_bootstrap_project_name) | list | first) | default({}) }}"
+
+    - name: Create configured Semaphore project
+      uri:
+        url: http://127.0.0.1:3001/api/projects
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+        body_format: json
+        body:
+          name: "{{ semaphore_bootstrap_project_name }}"
+          alert: false
+          max_parallel_tasks: 0
+          demo: false
+        return_content: true
+        status_code:
+          - 200
+          - 201
+      register: semaphore_created_project
+      when: semaphore_bootstrap_project | length == 0
+
+    - name: Set Semaphore project identifier
+      set_fact:
+        semaphore_bootstrap_project_id: "{{ semaphore_bootstrap_project.id if semaphore_bootstrap_project.id is defined else semaphore_created_project.json.id }}"
+
+    - name: Read Semaphore project keys
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/keys"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+        return_content: true
+        status_code: 200
+      register: semaphore_project_keys
+      no_log: true
+
+    - name: Select public repository access key
+      set_fact:
+        semaphore_repository_key: "{{ (semaphore_project_keys.json | selectattr('name', 'equalto', semaphore_bootstrap_repository_key_name) | list | first) | default({}) }}"
+      no_log: true
+
+    - name: Create public repository access key
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/keys"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+          Content-Type: application/json
+          Accept: application/json
+        body_format: raw
+        body: >-
+          {{
+            {
+              'name': semaphore_bootstrap_repository_key_name,
+              'type': 'none',
+              'project_id': semaphore_bootstrap_project_id | int,
+              'override_secret': false
+            } | to_json
+          }}
+        return_content: true
+        status_code:
+          - 200
+          - 201
+      register: semaphore_created_repository_key
+      when: semaphore_repository_key | length == 0
+
+    - name: Set public repository access key identifier
+      set_fact:
+        semaphore_repository_key_id: "{{ semaphore_repository_key.id if semaphore_repository_key.id is defined else semaphore_created_repository_key.json.id }}"
+
+    - name: Read Semaphore repositories
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/repositories"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+        return_content: true
+        status_code: 200
+      register: semaphore_repositories
+
+    - name: Select infrastructure repository
+      set_fact:
+        semaphore_infrastructure_repository: "{{ (semaphore_repositories.json | selectattr('name', 'equalto', semaphore_bootstrap_repository_name) | list | first) | default({}) }}"
+
+    - name: Create infrastructure repository
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/repositories"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+          Content-Type: application/json
+          Accept: application/json
+        body_format: raw
+        body: >-
+          {{
+            {
+              'name': semaphore_bootstrap_repository_name,
+              'project_id': semaphore_bootstrap_project_id | int,
+              'git_url': project_repo_url,
+              'git_branch': semaphore_bootstrap_repository_branch,
+              'ssh_key_id': semaphore_repository_key_id | int
+            } | to_json
+          }}
+        return_content: true
+        status_code:
+          - 200
+          - 201
+      register: semaphore_created_repository
+      when: semaphore_infrastructure_repository | length == 0
+
+    - name: Set infrastructure repository identifier
+      set_fact:
+        semaphore_infrastructure_repository_id: "{{ semaphore_infrastructure_repository.id if semaphore_infrastructure_repository.id is defined else semaphore_created_repository.json.id }}"
+
+    - name: Read Semaphore variable groups
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/environment"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+        return_content: true
+        status_code: 200
+      register: semaphore_variable_groups
+      no_log: true
+
+    - name: Select default Semaphore variable group
+      set_fact:
+        semaphore_default_variable_group: "{{ (semaphore_variable_groups.json | selectattr('name', 'equalto', semaphore_bootstrap_environment_name) | list | first) | default({}) }}"
+      no_log: true
+
+    - name: Create default Semaphore variable group
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/environment"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+          Content-Type: application/json
+          Accept: application/json
+        body_format: raw
+        body: >-
+          {{
+            {
+              'name': semaphore_bootstrap_environment_name,
+              'project_id': semaphore_bootstrap_project_id | int,
+              'password': '',
+              'json': '{}',
+              'env': '{}'
+            } | to_json
+          }}
+        return_content: true
+        status_code:
+          - 200
+          - 201
+      register: semaphore_created_variable_group
+      when: semaphore_default_variable_group | length == 0
+
+    - name: Set default Semaphore variable group identifier
+      set_fact:
+        semaphore_default_variable_group_id: "{{ semaphore_default_variable_group.id if semaphore_default_variable_group.id is defined else semaphore_created_variable_group.json.id }}"
+
+    - name: Select EC2 SSH key
+      set_fact:
+        semaphore_ec2_ssh_key: "{{ (semaphore_project_keys.json | selectattr('name', 'equalto', semaphore_bootstrap_ssh_key_name) | list | first) | default({}) }}"
+      when: semaphore_bootstrap_ssh_private_key | length > 0
+      no_log: true
+
+    - name: Create EC2 SSH key in Semaphore key store
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/keys"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+          Content-Type: application/json
+          Accept: application/json
+        body_format: raw
+        body: >-
+          {{
+            {
+              'name': semaphore_bootstrap_ssh_key_name,
+              'type': 'ssh',
+              'project_id': semaphore_bootstrap_project_id | int,
+              'ssh': {
+                'login': 'ubuntu',
+                'passphrase': '',
+                'private_key': semaphore_bootstrap_ssh_private_key
+              }
+            } | to_json
+          }}
+        return_content: true
+        status_code:
+          - 200
+          - 201
+      register: semaphore_created_ec2_ssh_key
+      when:
+        - semaphore_bootstrap_ssh_private_key | length > 0
+        - semaphore_ec2_ssh_key | length == 0
+      no_log: true
+
+    - name: Set EC2 SSH key identifier
+      set_fact:
+        semaphore_ec2_ssh_key_id: "{{ semaphore_ec2_ssh_key.id if semaphore_ec2_ssh_key.id is defined else semaphore_created_ec2_ssh_key.json.id }}"
+      when: semaphore_bootstrap_ssh_private_key | length > 0
+
+    - name: Read Semaphore inventories
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/inventory"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+        return_content: true
+        status_code: 200
+      register: semaphore_inventories
+      when: semaphore_bootstrap_ssh_private_key | length > 0
+
+    - name: Select production EC2 inventory
+      set_fact:
+        semaphore_production_inventory: "{{ (semaphore_inventories.json | selectattr('name', 'equalto', semaphore_bootstrap_inventory_name) | list | first) | default({}) }}"
+      when: semaphore_bootstrap_ssh_private_key | length > 0
+
+    - name: Create production EC2 inventory
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/inventory"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+          Content-Type: application/json
+          Accept: application/json
+        body_format: raw
+        body: >-
+          {{
+            {
+              'name': semaphore_bootstrap_inventory_name,
+              'project_id': semaphore_bootstrap_project_id | int,
+              'inventory': '[ec2]\n' ~ inventory_hostname ~ ' ansible_user=ubuntu',
+              'ssh_key_id': semaphore_ec2_ssh_key_id | int,
+              'become_key_id': none,
+              'repository_id': none,
+              'type': 'static'
+            } | to_json
+          }}
+        return_content: true
+        status_code:
+          - 200
+          - 201
+      register: semaphore_created_production_inventory
+      when:
+        - semaphore_bootstrap_ssh_private_key | length > 0
+        - semaphore_production_inventory | length == 0
+
+    - name: Set production EC2 inventory identifier
+      set_fact:
+        semaphore_production_inventory_id: "{{ semaphore_production_inventory.id if semaphore_production_inventory.id is defined else semaphore_created_production_inventory.json.id }}"
+      when: semaphore_bootstrap_ssh_private_key | length > 0
+
+    - name: Read Semaphore task templates
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/templates"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+        return_content: true
+        status_code: 200
+      register: semaphore_task_templates
+      when: semaphore_bootstrap_ssh_private_key | length > 0
+
+    - name: Select Ansible platform task template
+      set_fact:
+        semaphore_ansible_platform_template: "{{ (semaphore_task_templates.json | selectattr('name', 'equalto', semaphore_bootstrap_ansible_template_name) | list | first) | default({}) }}"
+      when: semaphore_bootstrap_ssh_private_key | length > 0
+
+    - name: Create Ansible platform task template
+      uri:
+        url: "http://127.0.0.1:3001/api/project/{{ semaphore_bootstrap_project_id }}/templates"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_api_login.cookies_string }}"
+          Content-Type: application/json
+          Accept: application/json
+        body_format: raw
+        body: >-
+          {{
+            {
+              'name': semaphore_bootstrap_ansible_template_name,
+              'project_id': semaphore_bootstrap_project_id | int,
+              'app': 'ansible',
+              'playbook': 'infra/ansible/install_vps.yml',
+              'inventory_id': semaphore_production_inventory_id | int,
+              'repository_id': semaphore_infrastructure_repository_id | int,
+              'environment_id': semaphore_default_variable_group_id | int,
+              'git_branch': semaphore_bootstrap_repository_branch,
+              'arguments': '[]',
+              'description': 'Runs the host configuration playbook from the infrastructure repository.',
+              'allow_override_args_in_task': true,
+              'type': ''
+            } | to_json
+          }}
+        status_code:
+          - 200
+          - 201
+      when:
+        - semaphore_bootstrap_ssh_private_key | length > 0
+        - semaphore_ansible_platform_template | length == 0
+
+    - name: Report missing SSH key for Semaphore Ansible template bootstrap
+      debug:
+        msg: "Created the Semaphore project catalogue, but not the EC2 inventory or Ansible task template. Put the SSH private key at {{ semaphore_bootstrap_ssh_private_key_file }} or set SEMAPHORE_SSH_PRIVATE_KEY_FILE, then rerun this playbook."
+      when: semaphore_bootstrap_ssh_private_key | length == 0
+
+- name: Report unavailable Semaphore bootstrap credential
+  debug:
+    msg: "Semaphore UI is installed, but project resources were not created because no local administrator password or SEMAPHORE_ADMIN_PASSWORD override is available to authenticate to its API."
+  when:
+    - semaphore_bootstrap_enabled | bool
+    - semaphore_admin_password | length == 0
