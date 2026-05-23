@@ -95,6 +95,12 @@ Terraform targets AWS region `us-east-1` by default and provisions a single comp
 | `aws_security_group.ec2_sg` | Allows service ports required by the current portfolio deployment |
 | `user_data` bootstrap | Creates 2 GB swap and installs Docker Engine and Compose plugin |
 
+### Provisioned EC2 Host
+
+The Terraform-provisioned EC2 instance is running in AWS and provides the single host used by the application and platform stacks.
+
+![AWS EC2 instance provisioned for the final DevOps project](./ec2.png)
+
 ### Infrastructure Boundary
 
 The current Terraform implementation does **not** provision a custom VPC, subnet topology, Elastic IP, Route 53 DNS, ACM certificate, application load balancer, managed database, IAM application role or remote Terraform backend. The security group is therefore attached in the default VPC, and DNS/TLS routing is managed separately from this codebase.
@@ -144,6 +150,20 @@ Six Docker Compose concerns are deployed on the EC2 host:
 
 The frontend production Dockerfile uses a multi-stage build, and both production Node application images run under non-root users.
 
+### Container Administration With Portainer
+
+Portainer provides an operator view of the deployed application, delivery and monitoring containers and their persisted Docker volumes.
+
+![Portainer view of deployed project containers](./portainer-container.png)
+
+![Portainer view of persistent project Docker volumes](./portainer-volumes.png)
+
+### Reverse Proxy Routing Result
+
+Nginx Proxy Manager routes the frontend and API hostnames to their application services and applies Let's Encrypt TLS certificates.
+
+![Nginx Proxy Manager proxy hosts for the frontend and API](./nginx-proxy-manager.png)
+
 ## CI/CD Delivery Flow
 
 The deployment flow is implemented across GitHub Actions, Jenkins and the EC2 Docker runtime:
@@ -177,6 +197,14 @@ sequenceDiagram
 | [`infra/ansible/files/ci-cd/jobs/deploy-mern-todo/Jenkinsfile`](./infra/ansible/files/ci-cd/jobs/deploy-mern-todo/Jenkinsfile) | Defines the deploy stage and prevents concurrent deployment builds |
 | [`infra/ansible/files/ci-cd/scripts/deploy.sh`](./infra/ansible/files/ci-cd/scripts/deploy.sh) | Updates source checkout and rebuilds/restarts the production application stack |
 
+### Pipeline Execution Results
+
+GitHub Actions workflow runs trigger the Jenkins deployment pipeline, whose stage view records successful checkout and deploy executions.
+
+![GitHub Actions Trigger Jenkins Deploy workflow runs](./github-actions.png)
+
+![Jenkins deploy-mern-todo pipeline stage results](./Jenkines.png)
+
 Currently the deployment script deploys the selected branch head. Although GitHub Actions submits a commit SHA, Jenkins does not yet pin the deployment to that immutable revision.
 
 ## Observability And Alerting
@@ -191,6 +219,12 @@ The monitoring stack is preconfigured through versioned files and joins the prod
 | Blackbox Exporter | Synthetic availability checks | HTTP `2xx` probe for the frontend container |
 | MongoDB Exporter | Database monitoring | MongoDB reachability and database operating metrics |
 | Alertmanager | Notification routing | Optional SMTP email notifications when configured |
+
+### Grafana Dashboard Result
+
+The provisioned Grafana dashboard displays EC2 host resource usage, network throughput and MongoDB connection, operation and memory metrics.
+
+![Grafana dashboard for host and MongoDB monitoring](./grafana.png)
 
 Configured alert rules include:
 
