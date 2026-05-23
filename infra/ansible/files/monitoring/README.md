@@ -43,9 +43,9 @@ export ALERTMANAGER_SMTP_SMARTHOST='smtp.gmail.com:587'
 
 ## Open The UI
 
-- Grafana: `http://<server-ip>:3000`
-- Prometheus: `http://<server-ip>:9090`
-- Alertmanager: `http://<server-ip>:9093`
+- Grafana: `http://ip-address:3000`
+- Prometheus: `http://ip-address:9090`
+- Alertmanager: `http://ip-address:9093`
 
 Grafana is provisioned automatically:
 
@@ -69,7 +69,7 @@ Edit `prometheus.yml` under the `blackbox-http` job:
 static_configs:
   - targets:
       - http://frontend:3000
-      - https://final-project.nguyentrungkien.net
+      - http://ip-address:3111
 ```
 
 For Docker services, use a service and port that return HTTP 2xx from the production app network. For public URLs, use the full external URL.
@@ -77,5 +77,5 @@ For Docker services, use a service and port that return HTTP 2xx from the produc
 ## Alert Delivery
 
 Alertmanager email delivery is generated from `templates/alertmanager.yml.j2`.
-After deploying with `ALERTMANAGER_SMTP_PASSWORD`, open `http://<server-ip>:9093/#/status` and verify the active receiver is `gmail`.
+After deploying with `ALERTMANAGER_SMTP_PASSWORD`, open `http://ip-address:9093/#/status` and verify the active receiver is `gmail`.
 To test an alert path, temporarily stop one monitored container, wait for the alert's `for` duration, then start it again and confirm the resolved email arrives.

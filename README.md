@@ -1,6 +1,6 @@
 # MERN Todo DevOps Platform on AWS
 
-An end-to-end DevOps implementation for deploying and observing a containerized MERN task-management application on AWS. The project provisions an EC2 host with Terraform, configures and secures it with Ansible, deploys application and platform services through Docker Compose, triggers deployments through GitHub Actions and Jenkins, and monitors availability and infrastructure health with Prometheus and Grafana.
+An end-to-end DevOps implementation for deploying and observing a containerized MERN task-management application on AWS. The project provisions an EC2 host with Terraform, configures and secures it with Ansible, deploys application and platform services through Docker Compose, manages containers with Portainer, triggers deployments through GitHub Actions and Jenkins, and monitors availability and infrastructure health with Prometheus and Grafana.
 
 ## Project At A Glance
 
@@ -11,6 +11,7 @@ An end-to-end DevOps implementation for deploying and observing a containerized 
 | Infrastructure as code | Terraform AWS provider and EC2/security group resources |
 | Server automation | Ansible playbook with Docker installation, host hardening and stack deployments |
 | Runtime platform | Docker Engine and Docker Compose |
+| Container management | Portainer CE for local Docker administration |
 | Ingress | Nginx Proxy Manager for intended HTTP/HTTPS proxying and certificate management |
 | Delivery pipeline | GitHub Actions trigger to Jenkins pipeline, deployed on the EC2 host |
 | Observability | Prometheus, Grafana, Alertmanager, Node Exporter, Blackbox Exporter and MongoDB Exporter |
@@ -22,7 +23,7 @@ An end-to-end DevOps implementation for deploying and observing a containerized 
 
 The diagram follows the layered presentation style of a production platform design while remaining aligned with this repository's implemented configuration:
 
-- The runtime is a **single-host architecture**: application, Jenkins, proxy and monitoring containers run on one EC2 instance.
+- The runtime is a **single-host architecture**: application, Portainer, Jenkins, proxy and monitoring containers run on one EC2 instance.
 - Terraform creates the EC2 instance and security group; Ansible installs/configures host software and deploys each Compose stack.
 - GitHub Actions does not build the application itself. It authenticates to Jenkins and triggers a deployment job.
 - Jenkins updates the server-side repository checkout and invokes the production Docker Compose workflow through `make prod`.
@@ -49,6 +50,7 @@ Application source code is stored under [`./resource/`](./resource/), with runti
 | Configuration management | Ansible, Jinja2 templates, Ubuntu, UFW, Fail2Ban, OpenSSH |
 | Application | MongoDB 7, Express.js, React, Node.js, Mongoose, JWT, bcrypt, Nodemailer |
 | Containers | Docker Engine, Docker Compose, Docker volumes and bridge networks |
+| Container management | Portainer CE |
 | Reverse proxy | Nginx Proxy Manager |
 | CI/CD | GitHub Actions, Jenkins Pipeline, Groovy initialization and Make |
 | Metrics and alerting | Prometheus, Grafana, Alertmanager, Node Exporter, Blackbox Exporter and Percona MongoDB Exporter |
@@ -60,7 +62,6 @@ README.md                               # Project and infrastructure documentati
 final-project-architecture.svg          # Repository-native architecture diagram
 infra/
 ├── terraform/
-│   ├── data.tf                         # Ubuntu AMI lookup
 │   ├── ec2.tf                          # EC2 host definition
 │   ├── security_group.tf               # Inbound/outbound security group rules
 │   ├── provider.tf                     # AWS provider configuration
@@ -71,11 +72,12 @@ infra/
     ├── install_vps.yml                 # Top-level server setup playbook
     ├── hosts.ini.example               # Static inventory example
     ├── templates/                      # App, monitoring and alert configuration templates
-    ├── tasks/                          # Docker, hardening, app, proxy, CI/CD and monitoring tasks
+    ├── tasks/                          # Docker, hardening, app, proxy, Portainer, CI/CD and monitoring tasks
     └── files/
         ├── ci-cd/                      # Jenkins image, pipeline and deploy script
         ├── monitoring/                 # Prometheus, Grafana and Alertmanager stack
-        └── nginx-proxy-manager/        # Edge proxy Compose definition
+        ├── nginx-proxy-manager/        # Edge proxy Compose definition
+        └── portainer/                  # Container management Compose definition
 ```
 
 ## Infrastructure Provisioning With Terraform
@@ -84,8 +86,8 @@ Terraform targets AWS region `us-east-1` by default and provisions a single comp
 
 | Terraform definition | Purpose |
 | --- | --- |
-| `data.aws_ami.ubuntu` | Selects the most recent Canonical Ubuntu Jammy 22.04 AMD64 server image |
-| `aws_instance.web` | Creates the EC2 server using the selected AMI and supplied SSH key pair |
+| `var.ami_id` | Pins the selected Ubuntu AMI so new upstream images cannot silently replace the host |
+| `aws_instance.web` | Creates the EC2 server with Terraform and EC2 termination protection |
 | `root_block_device` | Assigns a 20 GB `gp3` root volume |
 | `aws_security_group.ec2_sg` | Allows service ports required by the current portfolio deployment |
 | `user_data` bootstrap | Creates 2 GB swap and installs Docker Engine and Compose plugin |
@@ -108,20 +110,22 @@ The current Terraform implementation does **not** provision a custom VPC, subnet
 | 6 | `tasks/source_code.yml` | Clones or updates the application repository on the server |
 | 7 | `tasks/app.yml` | Generates application environment configuration and starts the production app stack |
 | 8 | `tasks/nginx_proxy_manager.yml` | Deploys the HTTP/HTTPS proxy stack |
-| 9 | `tasks/ci_cd.yml` | Deploys Jenkins and creates its pipeline job configuration |
-| 10 | `tasks/monitoring.yml` | Deploys metrics, dashboards and alerting services |
-| 11 | `tasks/verify.yml` | Reports installed Docker versions and running stack state |
+| 9 | `tasks/portainer.yml` | Deploys the Portainer CE container management UI |
+| 10 | `tasks/ci_cd.yml` | Deploys Jenkins and creates its pipeline job configuration |
+| 11 | `tasks/monitoring.yml` | Deploys metrics, dashboards and alerting services |
+| 12 | `tasks/verify.yml` | Reports installed Docker versions and running stack state |
 
 The project uses task imports rather than Ansible roles. Environment files rendered to the target host are restricted to mode `0600`, and templating operations containing credentials use `no_log: true`.
 
 ## Docker Runtime Architecture
 
-Four Docker Compose concerns are deployed on the EC2 host:
+Five Docker Compose concerns are deployed on the EC2 host:
 
 | Stack | Configuration | Containers | Persistent storage |
 | --- | --- | --- | --- |
 | Production app | [`./resource/docker-compose.prod.yml`](./resource/docker-compose.prod.yml) | `mongodb`, `backend`, `frontend` | MongoDB named volume |
 | Reverse proxy | [`infra/ansible/files/nginx-proxy-manager/docker-compose.nginx-proxy-manager.yml`](./infra/ansible/files/nginx-proxy-manager/docker-compose.nginx-proxy-manager.yml) | Nginx Proxy Manager | Local data and Let's Encrypt directories |
+| Container management | [`infra/ansible/files/portainer/docker-compose.portainer.yml`](./infra/ansible/files/portainer/docker-compose.portainer.yml) | Portainer CE | `portainer_data` named volume |
 | CI/CD | [`infra/ansible/files/ci-cd/docker-compose.ci-cd.yml`](./infra/ansible/files/ci-cd/docker-compose.ci-cd.yml) | Jenkins | Jenkins home bind mount |
 | Monitoring | [`infra/ansible/files/monitoring/docker-compose.monitoring.yml`](./infra/ansible/files/monitoring/docker-compose.monitoring.yml) | Grafana, Prometheus, Node Exporter, Blackbox Exporter, MongoDB Exporter, Alertmanager | Grafana, Prometheus and Alertmanager named volumes |
 
@@ -203,6 +207,7 @@ The AWS security group and UFW rules currently permit the following host access:
 | `22` | SSH | Server administration and Ansible connection | Restrict to trusted CIDR/VPN/bastion |
 | `80`, `443` | Nginx Proxy Manager | Public application web ingress | Public exposure expected |
 | `81` | Nginx Proxy Manager admin UI | Proxy administration | Restrict to operator network |
+| `9443` | Portainer HTTPS admin UI | Local Docker container administration | Restrict to operator network or proxy securely |
 | `3000` | Grafana | Dashboard access | Restrict or proxy with authentication |
 | `3111` | React frontend direct port | Direct app access | Route only through proxy |
 | `8080` | Jenkins UI | Delivery administration and GitHub trigger endpoint | Restrict and proxy securely |
@@ -245,6 +250,8 @@ terraform apply -var-file="terraform.tfvars" -var-file="secrets.tfvars"
 
 Terraform returns the public IP and DNS name used for the Ansible inventory.
 
+Always inspect the plan before applying it. Do not apply when Terraform reports that `aws_instance.web` "must be replaced" or shows `-/+` unless destroying the existing Docker host and its local service data is intentional. The EC2 AMI is pinned in `terraform.tfvars`; update that value only as part of a planned server replacement or migration. The instance uses `prevent_destroy` and EC2 termination protection; planned retirement requires explicitly removing both protections.
+
 ### 2. Configure The Inventory
 
 Copy the provided inventory template and supply the EC2 host address and SSH key reference:
@@ -281,6 +288,7 @@ After Nginx Proxy Manager is deployed, create proxy hosts and certificates for t
 ### 6. Verify Operations
 
 - Confirm the public application is accessible through HTTPS.
+- Open `https://<server-public-ip>:9443`, accept the initial self-signed certificate only for setup, create the Portainer administrator account, and connect the local Docker environment.
 - Confirm Jenkins has the managed `deploy-mern-todo` pipeline job.
 - Confirm Prometheus targets are healthy.
 - Confirm Grafana loads the provisioned dashboard.
@@ -291,6 +299,7 @@ After Nginx Proxy Manager is deployed, create proxy hosts and certificates for t
 - Infrastructure provisioning codified with Terraform.
 - Host configuration and platform service deployment automated using Ansible.
 - Application runtime isolation with Docker Compose and persistent storage volumes.
+- Local Docker administration with Portainer CE and persistent management data.
 - Server security baseline using UFW, Fail2Ban and hardened SSH.
 - CI/CD integration linking GitHub changes to Jenkins deployments.
 - Dashboard and alert provisioning stored as code.
@@ -309,6 +318,7 @@ This repository is appropriate as a learning and portfolio deployment, but the f
 | High | Deploy an immutable commit SHA or container image tag rather than resetting to a moving branch |
 | High | Add CI gates for application tests, linting, Terraform validation, Ansible validation and image/dependency scanning |
 | High | Move Terraform state to an encrypted remote backend with locking and commit the provider lock file |
+| High | Use an Elastic IP or managed DNS record if the service address must remain stable during host migration |
 | High | Reduce Jenkins privilege and limit access to the host Docker socket |
 | Medium | Provision or document DNS, TLS and Nginx Proxy Manager host routing consistently |
 | Medium | Remove unnecessary host port bindings, particularly MongoDB and internal monitoring endpoints |

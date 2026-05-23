@@ -1,4 +1,5 @@
 aws_region    = "us-east-1"
 instance_type = "t2.micro"
 instance_name = "final-devops-project-ec2"
+ami_id        = "ami-02fd066b86800f60c"
 key_name      = "final-devops-project"

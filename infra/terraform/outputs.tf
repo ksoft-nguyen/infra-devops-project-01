@@ -15,5 +15,5 @@ output "public_dns" {
 
 output "ami_id" {
   description = "AMI ID used for the instance"
-  value       = data.aws_ami.ubuntu.id
+  value       = var.ami_id
 }

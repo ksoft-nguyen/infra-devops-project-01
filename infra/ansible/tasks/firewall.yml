@@ -28,6 +28,12 @@
     port: "81"
     proto: tcp
 
+- name: Allow Portainer HTTPS UI
+  ufw:
+    rule: allow
+    port: "9443"
+    proto: tcp
+
 - name: Allow Jenkins web UI
   ufw:
     rule: allow

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1160" viewBox="0 0 1800 1160" role="img" aria-labelledby="title desc">
   <title id="title">MERN Todo DevOps Infrastructure Architecture</title>
-  <desc id="desc">Layered architecture diagram of a MERN Todo application hosted on one AWS EC2 instance and managed using Terraform, Ansible, Docker Compose, GitHub Actions, Jenkins, Nginx Proxy Manager, Prometheus, Grafana, Alertmanager and exporters.</desc>
+  <desc id="desc">Layered architecture diagram of a MERN Todo application hosted on one AWS EC2 instance and managed using Terraform, Ansible, Docker Compose, Portainer, GitHub Actions, Jenkins, Nginx Proxy Manager, Prometheus, Grafana, Alertmanager and exporters.</desc>
   <defs>
     <style>
       .background { fill: #fafaf7; }
@@ -47,7 +47,7 @@
   <rect class="background" width="1800" height="1160"/>
 
   <text x="65" y="67" class="title">MERN Todo DevOps Platform on AWS</text>
-  <text x="66" y="100" class="subtitle">Terraform provisioning | Ansible configuration | Docker Compose runtime | Jenkins deployment | Prometheus and Grafana observability</text>
+  <text x="66" y="100" class="subtitle">Terraform provisioning | Ansible configuration | Docker Compose and Portainer runtime | Jenkins deployment | Prometheus and Grafana observability</text>
   <rect x="1421" y="41" width="315" height="48" rx="24" fill="#111827"/>
   <text x="1578" y="71" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#ffffff">Single-Host Portfolio Architecture</text>
 
@@ -91,7 +91,7 @@
   <text x="193" y="907" text-anchor="middle" class="node-title">Public Ingress</text>
   <text x="193" y="930" text-anchor="middle" class="node-text">SG + UFW currently open</text>
   <text x="193" y="951" text-anchor="middle" class="port">22, 80, 81, 443, 3000</text>
-  <text x="193" y="969" text-anchor="middle" class="port">3111, 8080, 8111</text>
+  <text x="193" y="969" text-anchor="middle" class="port">3111, 8080, 8111, 9443</text>
   <text x="193" y="987" text-anchor="middle" class="port">9090, 9093, 9100, 9115, 50000</text>
 
   <!-- AWS host boundary -->
@@ -158,15 +158,20 @@
   <text x="1168" y="615" text-anchor="middle" class="node-title">MongoDB 7</text>
   <text x="1168" y="638" text-anchor="middle" class="node-text">Persistent Docker volume | app network</text>
 
-  <rect x="397" y="588" width="583" height="70" class="chip"/>
-  <text x="688" y="615" text-anchor="middle" class="node-title">Docker Compose Runtime</text>
-  <text x="688" y="638" text-anchor="middle" class="node-text">Separate app, CI/CD, proxy and monitoring stacks on one host</text>
+  <rect x="397" y="588" width="164" height="70" class="node-blue"/>
+  <text x="479" y="615" text-anchor="middle" class="node-title">Portainer CE</text>
+  <text x="479" y="638" text-anchor="middle" class="port">HTTPS :9443</text>
+
+  <rect x="595" y="588" width="385" height="70" class="chip"/>
+  <text x="787" y="615" text-anchor="middle" class="node-title">Docker Compose Runtime</text>
+  <text x="787" y="638" text-anchor="middle" class="node-text">Five stacks managed on one host</text>
 
   <path d="M561 516 H595" class="arrow-orange"/>
   <path d="M759 516 H793" class="arrow-orange"/>
   <path d="M980 516 H1013" class="arrow"/>
   <path d="M1154 516 H1182" class="arrow"/>
   <path d="M1252 558 V588" class="arrow"/>
+  <path d="M561 623 H595" class="arrow-blue"/>
 
   <!-- Monitoring layer -->
   <rect x="369" y="720" width="987" height="303" fill="#edf7f0" class="section"/>
@@ -226,10 +231,10 @@
   <text x="1570" y="369" text-anchor="middle" class="small">routing managed in NPM UI</text>
 
   <rect x="1444" y="464" width="252" height="126" class="node-purple"/>
-  <text x="1570" y="496" text-anchor="middle" class="node-title">Deployment Operator</text>
-  <text x="1570" y="521" text-anchor="middle" class="node-text">Jenkins status and build logs</text>
-  <text x="1570" y="543" text-anchor="middle" class="node-text">Branch-based rebuild on EC2</text>
-  <text x="1570" y="567" text-anchor="middle" class="port">GitHub -> Jenkins -> Compose</text>
+  <text x="1570" y="496" text-anchor="middle" class="node-title">Platform Operator</text>
+  <text x="1570" y="521" text-anchor="middle" class="node-text">Jenkins builds + deployments</text>
+  <text x="1570" y="543" text-anchor="middle" class="node-text">Portainer container management</text>
+  <text x="1570" y="567" text-anchor="middle" class="port">:8080 / HTTPS :9443</text>
 
   <rect x="1444" y="668" width="252" height="148" class="node-green"/>
   <text x="1570" y="702" text-anchor="middle" class="node-title">Platform Monitoring</text>

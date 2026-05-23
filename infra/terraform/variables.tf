@@ -16,6 +16,11 @@ variable "instance_name" {
   default     = "final-devops-project-ec2"
 }
 
+variable "ami_id" {
+  description = "Pinned AMI ID for the EC2 instance; changing it requires intentional host replacement"
+  type        = string
+}
+
 variable "key_name" {
   description = "Name of the AWS key pair for SSH access"
   type        = string

@@ -1,5 +1,5 @@
 [ec2]
-<server-ip> ansible_user=<ssh-user> ansible_ssh_private_key_file=./<private-key>.pem
+3.95.18.142 ansible_user=<ssh-user> ansible_ssh_private_key_file=./<private-key>.pem
 
 [ec2:vars]
 ansible_python_interpreter=/usr/bin/python3

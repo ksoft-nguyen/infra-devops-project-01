@@ -42,11 +42,15 @@
     app_gmail_username: ""
     app_gmail_password: ""
     app_external_frontend_port: "3111"
-    app_react_app_api_url: "https://api-final-project.nguyentrungkien.net/api"
+    app_react_app_api_url: "http://3.95.18.142:8111/api"
     nginx_proxy_manager_stack_dir: /opt/nginx-proxy-manager
     nginx_proxy_manager_compose_file: docker-compose.nginx-proxy-manager.yml
     nginx_proxy_manager_container_names:
       - nginx-proxy-manager
+    portainer_stack_dir: /opt/portainer
+    portainer_compose_file: docker-compose.portainer.yml
+    portainer_container_names:
+      - portainer
     ci_cd_stack_dir: /opt/ci-cd
     ci_cd_compose_file: docker-compose.ci-cd.yml
     ci_cd_container_names:
@@ -111,6 +115,9 @@
 
     - name: Deploy Nginx Proxy Manager stack
       import_tasks: tasks/nginx_proxy_manager.yml
+
+    - name: Deploy Portainer stack
+      import_tasks: tasks/portainer.yml
 
     - name: Deploy CI/CD stack
       import_tasks: tasks/ci_cd.yml

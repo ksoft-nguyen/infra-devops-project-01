@@ -1,0 +1,78 @@
+---
+- name: Create Portainer stack directory
+  file:
+    path: "{{ portainer_stack_dir }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Copy Portainer stack files
+  copy:
+    src: "{{ playbook_dir }}/files/portainer/"
+    dest: "{{ portainer_stack_dir }}/"
+    owner: ubuntu
+    group: ubuntu
+    mode: preserve
+    directory_mode: "0755"
+
+- name: Inspect existing Portainer containers
+  command:
+    argv:
+      - docker
+      - inspect
+      - "--format"
+      - "{{ '{{ json .Config.Labels }}' }}"
+      - "{{ item }}"
+  loop: "{{ portainer_container_names }}"
+  register: existing_portainer_containers
+  changed_when: false
+  failed_when: false
+
+- name: Remove legacy Portainer containers
+  command:
+    argv:
+      - docker
+      - rm
+      - "--force"
+      - "{{ item.item }}"
+  loop: "{{ existing_portainer_containers.results }}"
+  when:
+    - item.rc == 0
+    - "'\"com.docker.compose.project\":\"portainer\"' not in item.stdout"
+  register: legacy_portainer_removed
+  changed_when: true
+
+- name: Start Portainer stack with Docker Compose
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ portainer_stack_dir }}/{{ portainer_compose_file }}"
+      - up
+      - "-d"
+      - "--remove-orphans"
+    chdir: "{{ portainer_stack_dir }}"
+  register: portainer_compose_up
+  changed_when: >
+    'Created' in portainer_compose_up.stdout or
+    'Created' in portainer_compose_up.stderr or
+    'Started' in portainer_compose_up.stdout or
+    'Started' in portainer_compose_up.stderr or
+    'Recreated' in portainer_compose_up.stdout or
+    'Recreated' in portainer_compose_up.stderr or
+    'Pulling' in portainer_compose_up.stdout or
+    'Pulling' in portainer_compose_up.stderr
+
+- name: Check Portainer stack containers
+  command:
+    argv:
+      - docker
+      - compose
+      - "-f"
+      - "{{ portainer_stack_dir }}/{{ portainer_compose_file }}"
+      - ps
+    chdir: "{{ portainer_stack_dir }}"
+  register: portainer_stack_ps
+  changed_when: false

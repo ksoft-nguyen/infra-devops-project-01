@@ -38,6 +38,15 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Portainer HTTPS admin UI
+  ingress {
+    description = "Portainer HTTPS Admin"
+    from_port   = 9443
+    to_port     = 9443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Grafana UI
   ingress {
     description = "Grafana"

@@ -1,10 +1,10 @@
 import axios from "axios"
 
 const productionApiUrl = "https://api-final-project.nguyentrungkien.net/api"
-const fallbackApiUrl = "http://localhost:8000/api"
+const fallbackApiUrl = "http://3.95.18.142:8000/api"
 
 const isLocalhost = (hostname) => {
-    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+    return hostname === "3.95.18.142" || hostname === "127.0.0.1" || hostname === "::1"
 }
 
 const getBaseURL = () => {
