@@ -68,8 +68,7 @@ infra/
 │   ├── security_group.tf               # Inbound/outbound security group rules
 │   ├── provider.tf                     # AWS provider configuration
 │   ├── variables.tf                    # Terraform input variables
-│   ├── outputs.tf                      # EC2 ID, IP, DNS and AMI outputs
-│   └── scripts/bootstrap.sh            # Initial Docker and swap bootstrap
+│   └── outputs.tf                      # EC2 ID, IP, DNS and AMI outputs
 └── ansible/
     ├── install_vps.yml                 # Top-level server setup playbook
     ├── hosts.ini.example               # Static inventory example
@@ -93,7 +92,6 @@ Terraform targets AWS region `us-east-1` by default and provisions a single comp
 | `aws_instance.web` | Creates the EC2 server with Terraform and EC2 termination protection |
 | `root_block_device` | Assigns a 20 GB `gp3` root volume |
 | `aws_security_group.ec2_sg` | Allows service ports required by the current portfolio deployment |
-| `user_data` bootstrap | Creates 2 GB swap and installs Docker Engine and Compose plugin |
 
 ### Provisioned EC2 Host
 
@@ -111,8 +109,8 @@ The current Terraform implementation does **not** provision a custom VPC, subnet
 
 | Sequence | Imported task | Outcome |
 | ---: | --- | --- |
-| 1 | `tasks/docker.yml` | Installs Docker CE, Buildx and Docker Compose v2 |
-| 2 | `tasks/swap.yml` | Ensures a 2 GB swap file exists |
+| 1 | `tasks/swap.yml` | Ensures a 2 GB swap file exists |
+| 2 | `tasks/docker.yml` | Installs Docker CE, Buildx and Docker Compose v2 |
 | 3 | `tasks/firewall.yml` | Enables UFW with deny-by-default inbound filtering and declared allowed ports |
 | 4 | `tasks/fail2ban.yml` | Enables SSH brute-force banning |
 | 5 | `tasks/ssh_hardening.yml` | Disables root login and SSH password authentication |

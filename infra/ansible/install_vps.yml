@@ -116,11 +116,11 @@
       setup:
 
   tasks:
-    - name: Configure Docker
-      import_tasks: tasks/docker.yml
-
     - name: Configure swap
       import_tasks: tasks/swap.yml
+
+    - name: Configure Docker
+      import_tasks: tasks/docker.yml
 
     - name: Configure firewall
       import_tasks: tasks/firewall.yml
